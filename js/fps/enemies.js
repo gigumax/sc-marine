@@ -774,12 +774,17 @@ const _ammoGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
 const _ammoMat = new THREE.MeshStandardMaterial({ color: 0x2266aa, emissive: 0x2a8ae0, emissiveIntensity: 0.9 });
 const _hpGeo = new THREE.BoxGeometry(0.32, 0.32, 0.32);
 const _hpMat = new THREE.MeshStandardMaterial({ color: 0x22aa55, emissive: 0x2ae05a, emissiveIntensity: 0.9 });
+const _rfGeo = new THREE.BoxGeometry(0.44, 0.44, 0.44);   // bigger — this one matters
+const _rfMat = new THREE.MeshStandardMaterial({ color: 0x8a4a00, emissive: 0xff7a1a, emissiveIntensity: 1.1 });
 
 function maybeDrop(pos) {
   const r = Math.random();
   if (r > 0.16) return;
-  const type = r < 0.10 ? 'ammo' : 'health';
-  const m = new THREE.Mesh(type === 'ammo' ? _ammoGeo : _hpGeo, type === 'ammo' ? _ammoMat : _hpMat);
+  // orange dropship cube — very rare, solo only (AI marines don't exist online)
+  const type = !Net.on && r < 0.012 ? 'reinforce' : r < 0.10 ? 'ammo' : 'health';
+  const m = new THREE.Mesh(
+    type === 'reinforce' ? _rfGeo : type === 'ammo' ? _ammoGeo : _hpGeo,
+    type === 'reinforce' ? _rfMat : type === 'ammo' ? _ammoMat : _hpMat);
   m.position.set(pos.x, 0.5, pos.z);
   Enemies.scene.add(m);
   const p = { m, type, t: 0 };
@@ -798,6 +803,10 @@ function updatePickups(dt) {
           Player.energy = Math.min(Player.energyMax, Player.energy + 35);
           UI.toast('+35 ENERGY');
         } else { Player.reserve = Math.min(480, Player.reserve + 40); UI.toast('+40 AMMO'); }
+      }
+      else if (p.type === 'reinforce') {
+        spawnReinforcements(5, p.m.position);
+        UI.toast('REINFORCEMENTS — +5 MARINES');
       }
       else { Player.heal(30); UI.toast('+30 VITALS'); }
       Audio2.pickup();

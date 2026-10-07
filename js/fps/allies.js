@@ -482,6 +482,31 @@ function buildMarauderMesh(accent) {
 }
 
 /* ---------- squad lifecycle ---------- */
+/* one marine joins the list — used by spawnAllies and dropship reinforcements */
+function mkAlly(idx, name, accent, leader, mesh, slot, at) {
+  mesh.position.copy(at);
+  mesh.rotation.y = Player.yaw;
+  Enemies.scene.add(mesh);
+  const a = {
+    mesh, pos: mesh.position,
+    idx, name, accent,
+    leader,
+    marFrame: leader,                      // leaders wear the marauder chassis
+    hp: leader ? 150 : 90, maxHp: leader ? 150 : 90,
+    yaw: Player.yaw,
+    dead: false, gone: false, deathT: 0,
+    fireT: 0.4 + idx * 0.15, retargetT: idx * 0.12,
+    tgt: null, tgtHive: null,
+    slot,
+    walkT: Math.random() * 7,
+    regenT: 0, hurtT: 0, healT: 0,
+    radius: 0.55,
+  };
+  Allies.list.push(a);
+  mesh.userData.ally = a;                     // medic beam raycast finds this
+  return a;
+}
+
 function spawnAllies() {
   clearAllies();
   if (Net.on) { buildSquadHud(); return; }   // online: the squad is real players
@@ -489,40 +514,50 @@ function spawnAllies() {
   const li1 = Math.floor(Math.random() * n);          // two marines share command
   let li2 = Math.floor(Math.random() * n);
   while (li2 === li1) li2 = Math.floor(Math.random() * n);
+  const sin = Math.sin(Player.yaw), cos = Math.cos(Player.yaw);
   for (let i = 0; i < n; i++) {
     const isLead = i === li1 || i === li2;            // commanders wear marauder chassis
-    const mesh = isLead
-      ? buildMarauderMesh(Allies.accents[i])
-      : buildMarineMesh(Allies.accents[i]);
-    // spawn in the wedge behind the player's facing dir
     const sl = Allies.slots[i];
-    const sin = Math.sin(Player.yaw), cos = Math.cos(Player.yaw);
-    const wx = sl.x * cos + sl.z * sin;
-    const wz = -sl.x * sin + sl.z * cos;
-    mesh.position.set(Player.pos.x + wx, 0, Player.pos.z + wz);
-    mesh.rotation.y = Player.yaw;
-    Enemies.scene.add(mesh);
-    Allies.list.push({
-      mesh, pos: mesh.position,
-      idx: i,
-      name: Allies.names[i],
-      accent: '#' + Allies.accents[i].toString(16).padStart(6, '0'),
-      leader: isLead,
-      marFrame: isLead,                    // wearing the marauder chassis?
-      hp: isLead ? 150 : 90, maxHp: isLead ? 150 : 90,
-      yaw: Player.yaw,
-      dead: false, gone: false, deathT: 0,
-      fireT: 0.4 + i * 0.15, retargetT: i * 0.12,
-      tgt: null, tgtHive: null,
-      slot: sl,
-      walkT: Math.random() * 7,
-      regenT: 0, hurtT: 0, healT: 0,
-      radius: 0.55,
-    });
-    const a = Allies.list[Allies.list.length - 1];
-    a.mesh.userData.ally = a;                     // medic beam raycast finds this
+    // spawn in the wedge behind the player's facing dir
+    mkAlly(i, Allies.names[i],
+      '#' + Allies.accents[i].toString(16).padStart(6, '0'),
+      isLead,
+      isLead ? buildMarauderMesh(Allies.accents[i]) : buildMarineMesh(Allies.accents[i]),
+      sl,
+      new THREE.Vector3(Player.pos.x + sl.x * cos + sl.z * sin, 0,
+                        Player.pos.z - sl.x * sin + sl.z * cos));
   }
   buildSquadHud();
+}
+
+/* ---------- dropship reinforcements — the orange cube calls in a fireteam ---------- */
+const EXTRA_NAMES = ['MARTINEZ', 'CHEN', 'OKAFOR', 'SILVA', 'KOVA',
+                     'PETROV', 'REYES', 'NGUYEN', 'HALE', 'MORROW'];
+let _reinfSeq = 0;                                  // names beyond the roster
+
+function spawnReinforcements(n, at) {
+  if (Net.on || !Game.running) return;             // AI marines are solo-only
+  const c = at || Player.pos;
+  for (let i = 0; i < n; i++) {
+    const idx = Allies.list.length;                // monotonic — HUD chips stay unique
+    const accent = Allies.accents[idx % Allies.accents.length];
+    // extras beyond the baked wedge get a rear-rank slot
+    const ex = Math.max(0, idx - Allies.slots.length);
+    const sl = idx < Allies.slots.length ? Allies.slots[idx]
+      : { x: ((ex % 5) - 2) * 2.8, z: 8.6 + Math.floor(ex / 5) * 1.8 };
+    const k = _reinfSeq + i;
+    const cyc = Math.floor(k / EXTRA_NAMES.length);
+    const name = EXTRA_NAMES[k % EXTRA_NAMES.length] + (cyc ? '-' + (cyc + 1) : '');
+    const ang = i / n * Math.PI * 2;
+    mkAlly(idx, name, '#' + accent.toString(16).padStart(6, '0'), false,
+      buildMarineMesh(accent), sl,
+      new THREE.Vector3(c.x + Math.sin(ang) * 1.8, 0, c.z + Math.cos(ang) * 1.8));
+  }
+  _reinfSeq += n;
+  buildSquadHud();
+  const voice = Allies.list[Allies.list.length - n];
+  allySay(voice, '"Five boots on the ground — where\'s the fight, sir?"', true);
+  Audio2.wave();                                   // deep whoomp — feels like a drop-in
 }
 
 function clearAllies() {
