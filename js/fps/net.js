@@ -479,10 +479,14 @@ const Net = {
   update(dt) {
     // countdown runs pre-match — before Net.on flips
     if (this.countT > 0 && !this.started) {
-      // someone left mid-countdown — drop below minimum → hold the drop
-      if (Object.keys(this.members).length < NET_MIN) {
+      // someone left mid-countdown — drop below minimum → hold the drop.
+      // count by heartbeat freshness, not snapshot presence: a dead tab's
+      // doc lingers in this.members until the next snapshot refilters it,
+      // but its t ages out either way
+      const live = Object.values(this.members).filter(m => this.fresh(m)).length;
+      if (live < NET_MIN) {
         this.countT = -1;
-        this.lobby(`WAITING — ${Object.keys(this.members).length}/${NET_MIN} MARINES`);
+        this.lobby(`WAITING — ${live}/${NET_MIN} MARINES`);
         return;
       }
       this.countT -= dt;
