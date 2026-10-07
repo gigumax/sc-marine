@@ -690,6 +690,8 @@ function updateAllies(dt) {
   const anchor = lead ? lead.pos : pp;             // formation anchor: leader, else you
   const anchorYaw = lead ? lead.yaw : Player.yaw;
   const falling = Allies.cmd === 'fall';           // FALL BACK order active
+  // PROTECT THE LT — you're bleeding out, squad drops everything and closes on you
+  const protecting = !Player.dead && Player.hp < 30;
   Allies.radioT = Math.max(0, Allies.radioT - dt);
   Allies.hurtBarkT = Math.max(0, Allies.hurtBarkT - dt);
 
@@ -724,10 +726,20 @@ function updateAllies(dt) {
       a.retargetT = 0.35;
       a.tgt = null; a.tgtHive = null;
       let best = 34;
-      for (const e of Enemies.list) {
-        if (e.dead) continue;
-        const d = Math.hypot(e.mesh.position.x - a.pos.x, e.mesh.position.z - a.pos.z);
-        if (d < best) { best = d; a.tgt = e; }
+      if (protecting) {
+        // threat assessment is centered on the LT, not the marine
+        best = 40;
+        for (const e of Enemies.list) {
+          if (e.dead) continue;
+          const d = Math.hypot(e.mesh.position.x - pp.x, e.mesh.position.z - pp.z);
+          if (d < best) { best = d; a.tgt = e; }
+        }
+      } else {
+        for (const e of Enemies.list) {
+          if (e.dead) continue;
+          const d = Math.hypot(e.mesh.position.x - a.pos.x, e.mesh.position.z - a.pos.z);
+          if (d < best) { best = d; a.tgt = e; }
+        }
       }
       if (!a.tgt) {
         best = 30;
@@ -744,7 +756,21 @@ function updateAllies(dt) {
     /* --- move: leader pushes the objective, followers hold formation --- */
     a.moving = false;
     let sdx = 0, sdz = 0;                              // desired-dir (facing fallback)
-    if (a === lead) {
+    if (protecting) {
+      // bodyguard ring — leaders included; sprint until you're inside it
+      const ring = a.idx / Math.max(1, Allies.list.length) * Math.PI * 2;
+      sdx = pp.x + Math.sin(ring) * 3.0 - a.pos.x;
+      sdz = pp.z + Math.cos(ring) * 3.0 - a.pos.z;
+      const gd = Math.hypot(sdx, sdz);
+      if (gd > 0.7) {
+        const sp = gd > 8 ? 9.5 : 6.5;
+        const res = worldCollide(a.pos.x + sdx / gd * sp * dt,
+                                 a.pos.z + sdz / gd * sp * dt, a.radius);
+        a.pos.x = res.x; a.pos.z = res.z;
+        a.moving = true;
+        a.walkT += dt * sp * 1.5;
+      }
+    } else if (a === lead) {
       // leader answers to the objective, not to you — pushes the nearest
       // live hive, hunts the swarm once hives are down, halts on FALL BACK
       let goal = null, holdR = 2.4;
