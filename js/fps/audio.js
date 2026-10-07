@@ -50,9 +50,12 @@ const Audio2 = {
     } catch (e) {}
   },
 
-  shot()    { this.noise(0.09, 0.30, 1800, 0.5); this.tone(220, 0.06, 'square', 0.10, 90); },
-  shotBig() { this.noise(0.2, 0.45, 320, 1.4); this.tone(85, 0.3, 'sawtooth', 0.24, 38);
-              this.tone(160, 0.12, 'square', 0.1, 60); },
+  // your own rifle is right next to your ear — louder + a low muzzle thump
+  shot()    { this.noise(0.09, 0.52, 1800, 0.5); this.tone(220, 0.06, 'square', 0.16, 90);
+              this.tone(75, 0.08, 'sine', 0.18, 40); },
+  shotBig() { this.noise(0.2, 0.65, 320, 1.4); this.tone(85, 0.3, 'sawtooth', 0.34, 38);
+              this.tone(160, 0.12, 'square', 0.15, 60);
+              this.tone(55, 0.12, 'sine', 0.2, 30); },
   boom(d)   { const v = this.vol(d); this.noise(0.3, 0.5 * v, 200, 1.8);
               this.tone(65, 0.4, 'sawtooth', 0.3 * v, 30); },
   dry()     { this.tone(1200, 0.04, 'square', 0.06, 800); },
