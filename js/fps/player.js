@@ -201,10 +201,7 @@ function tryJump() {
   }
 }
 function startReload() {
-  if (Player.reloading || Player.mag === Player.magSize || Player.reserve <= 0 || Player.dead) return;
-  Player.reloading = true; Player.reloadT = 1.5;
-  Audio2.reload();
-  document.getElementById('reload-hint').textContent = 'RELOADING';
+  // bottomless mags — reload is a no-op now
 }
 
 function movePlayer(dt, moveX, moveZ, sprint) {
@@ -248,9 +245,7 @@ const _ray = new THREE.Raycaster();
 const _dir = new THREE.Vector3();
 
 function fireWeapon() {
-  if (Player.mag <= 0) { Audio2.dry(); startReload(); return; }
-  Player.mag--;
-  Player.fireT = Player.fireRate;             // 9 rps marine / 0.53s marauder
+  Player.fireT = Player.fireRate;             // 9 rps marine / 0.53s marauder — no reload
   Player.recoil = Math.min(1, Player.recoil + 0.55);
   Player.shake = Math.min(1, Player.shake + (Player.unit === 'marauder' ? 0.7 : 0.3));
   Player.pitch += Player.unit === 'marauder'
@@ -518,20 +513,9 @@ Player.heal = function (n) {
 
 /* ---------- per-frame ---------- */
 function updatePlayer(dt) {
-  // fire / reload timers
+  // fire timer — no reload bookkeeping anymore
   if (Player.fireT > 0) Player.fireT -= dt;
-  if (Player.reloading) {
-    Player.reloadT -= dt;
-    if (Player.reloadT <= 0) {
-      const need = Player.magSize - Player.mag;
-      const take = Math.min(need, Player.reserve);
-      Player.mag += take; Player.reserve -= take;
-      Player.reloading = false;
-      document.getElementById('reload-hint').textContent = '';
-    }
-  }
-  if (Player.firing && Player.fireT <= 0 && !Player.reloading && !Player.dead) fireWeapon();
-  if (Player.mag === 0 && !Player.reloading && Player.reserve > 0) startReload();
+  if (Player.firing && Player.fireT <= 0 && !Player.dead) fireWeapon();
 
   // recoil & shake decay
   Player.recoil = Math.max(0, Player.recoil - dt * 5);
