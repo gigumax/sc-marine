@@ -70,8 +70,13 @@
 <div id="lobbyscreen" class="overlay hidden">
   <div class="panel">
     <h1>UPLINK<span>SQUAD MATCHMAKING</span></h1>
-    <p class="obj">Drops need <b>at least 2 marines</b> — rooms cap at <b>5</b>,<br>full ones roll over to the next channel.</p>
-    <div id="lobby-status">CONTACTING UPLINK…</div>
+    <p class="obj">Pick a world — <b>everyone who picks the same one drops together</b>.<br>Drops need <b>2+ marines</b>, worlds cap at <b>5</b>; a running match drops you straight in.</p>
+    <div id="world-row">
+      <button class="world" data-w="1"><b>WORLD 1</b><i>CHAR</i></button>
+      <button class="world" data-w="2"><b>WORLD 2</b><i>KORHAL</i></button>
+      <button class="world" data-w="3"><b>WORLD 3</b><i>MAR SARA</i></button>
+    </div>
+    <div id="lobby-status">PICK A WORLD</div>
     <div id="lobby-players"></div>
     <button id="btn-lobby-cancel" class="ghost">ABORT DROP</button>
   </div>

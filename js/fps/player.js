@@ -10,6 +10,7 @@ const Player = {
   hp: 100, maxHp: 100,
   mag: 32, magSize: 32, reserve: 320,
   healPwr: 0,                                 // medic beam hp per pulse
+  energy: 100, energyMax: 100,                // medic capacitor — blue cubes refill it
   unit: 'marine',                         // 'marine' | 'marauder'
   fireRate: 1 / 9, dmg: 16, hsDmg: 34,
   reloading: false, reloadT: 0,
@@ -245,7 +246,12 @@ function movePlayer(dt, moveX, moveZ, sprint) {
 const _ray = new THREE.Raycaster();
 const _dir = new THREE.Vector3();
 
+const MEDIC_ECOST = 4;                        // energy per beam pulse (~4s of sustained fire)
+
 function fireWeapon() {
+  if (Player.unit === 'medic' && Player.energy <= 0) {
+    Player.fireT = 0.3; Audio2.dry(); return;   // capacitor dead — grab a blue cube
+  }
   Player.fireT = Player.fireRate;             // 9 rps marine / 0.53s marauder — no reload
   Player.recoil = Math.min(1, Player.recoil + 0.55);
   Player.shake = Math.min(1, Player.shake + (Player.unit === 'marauder' ? 0.7 : 0.3));
@@ -266,6 +272,7 @@ function fireWeapon() {
 
   // medic: green nano beam — knits squadmates back together, hurts nothing
   if (Player.unit === 'medic') {
+    Player.energy -= MEDIC_ECOST;
     _dir.set((Math.random() - .5) * 0.006, (Math.random() - .5) * 0.006, -1)
         .normalize().applyQuaternion(Player.cam.quaternion);
     _ray.set(Player.cam.getWorldPosition(new THREE.Vector3()), _dir);
@@ -305,7 +312,12 @@ function fireWeapon() {
       const t = -_ray.ray.origin.y / _dir.y;      // beam hits the deck
       if (_dir.y < 0 && t > 0 && t < 28) end = _ray.ray.origin.clone().addScaledVector(_dir, t);
     }
-    spawnTracer(mz.addScaledVector(_dir, 0.9), end, 0x5aff8a, 0.14);
+    // laser look — green halo line + white-hot core, long enough to read as a beam
+    const bFrom = mz.addScaledVector(_dir, 0.9);
+    spawnTracer(bFrom, end, 0x5aff8a, 0.16);
+    const bFrom2 = bFrom.clone(); bFrom2.y += 0.02;
+    const end2 = end.clone();      end2.y += 0.02;
+    spawnTracer(bFrom2, end2, 0xeafff4, 0.12);
     if (Net.on) Net.tellShot({ o: mz, e: end, heal: 1 });
     return;
   }
@@ -556,13 +568,18 @@ function updateTracers(dt) {
 }
 
 /* ---------- damage ---------- */
+const SUIT_CRIT = 0.3;                             // hp fraction → "SUIT CRITICAL" voice
+
 function damagePlayer(dmg, fromPos) {
   if (Player.dead) return;
+  const wasOk = Player.hp > Player.maxHp * SUIT_CRIT;
   Player.hp -= dmg;
   Player.regenT = 5;
   Player.shake = Math.min(1.6, Player.shake + 0.8);
   Audio2.hurt();
   UI.damageFlash();
+  if (Player.hp > 0 && wasOk && Player.hp <= Player.maxHp * SUIT_CRIT)
+    Audio2.suitCritical();                         // suit computer calls the drop once per crossing
   if (Player.hp <= 0) {
     Player.hp = 0;
     Player.dead = true;
@@ -659,7 +676,7 @@ function updatePlayer(dt) {
 const UNITS = {
   marine:   { hp: 100, mag: 32, reserve: 320, rate: 1 / 9, dmg: 16, hs: 34, label: 'C-14 GAUSS',         flash: 0.35 },
   marauder: { hp: 300, mag: 8,  reserve: 96,  rate: 0.53,  dmg: 80, hs: 80, label: 'PUNISHER GRENADES',  flash: 0.6  },
-  medic:    { hp: 100, mag: 40, reserve: 0,   rate: 1 / 6, dmg: 0,  hs: 0,  heal: 8, label: 'NANO BEAM',           flash: 0.35 },
+  medic:    { hp: 100, mag: 40, reserve: 0,   rate: 1 / 6, dmg: 0,  hs: 0,  heal: 8, nrg: 100, label: 'NANO BEAM',    flash: 0.35 },
 };
 
 function setUnit(unit) {
@@ -671,6 +688,7 @@ function setUnit(unit) {
   Player.magSize = u.mag; Player.mag = u.mag; Player.reserve = u.reserve;
   Player.fireRate = u.rate; Player.dmg = u.dmg; Player.hsDmg = u.hs;
   Player.healPwr = u.heal || 0;
+  Player.energyMax = u.nrg || 0; Player.energy = Player.energyMax;
   if (Player.muzzle) {                          // beam color follows the kit
     Player.muzzle.material.color.setHex(Player.unit === 'medic' ? 0x66ffa0 : 0xffd080);
     Player.muzzleLight.color.setHex(Player.unit === 'medic' ? 0x4aff80 : 0xffb060);

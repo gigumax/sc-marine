@@ -79,4 +79,34 @@ const Audio2 = {
   hitAt(d)  { const v = this.vol(d); this.tone(520, 0.07, 'triangle', 0.09 * v, 260); },
   radio()   { this.tone(1150, 0.04, 'square', 0.04, 1150);
               setTimeout(() => this.tone(1500, 0.05, 'square', 0.04, 1500), 60); },
+
+  /* suit computer voice — female TTS with a calm synth delivery */
+  voice() {
+    if (!window.speechSynthesis) return null;
+    if (this._voice) return this._voice;             // cache only a found voice — list may load late
+    const prefs = /samantha|victoria|karen|moira|zira|female|susan|allison|ava|serena|kate/i;
+    const all = speechSynthesis.getVoices();
+    this._voice = all.find(v => prefs.test(v.name))
+             || all.find(v => v.lang.startsWith('en'))
+             || null;
+    return this._voice;
+  },
+  say(text, opts) {
+    try {
+      if (!window.speechSynthesis) return;
+      speechSynthesis.cancel();                      // don't queue stale warnings
+      const u = new SpeechSynthesisUtterance(text);
+      const v = this.voice();
+      if (v) u.voice = v;
+      u.rate = opts && opts.rate || 1.0;
+      u.pitch = opts && opts.pitch || 1.05;
+      u.volume = 0.9;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  },
+  suitCritical() {
+    this.tone(880, 0.12, 'square', 0.08, 440);       // klaxon chirp under the voice
+    this.tone(880, 0.12, 'square', 0.08, 440);
+    this.say('Suit critical', { rate: 0.95, pitch: 1.1 });
+  },
 };

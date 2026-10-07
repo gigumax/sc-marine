@@ -23,7 +23,7 @@ const FB_CFG = {
   messagingSenderId: '378764253130',
   appId: '1:378764253130:web:68d91f0ce7b162f7efe133',
 };
-const NET_MIN = 2, NET_MAX = 5, NET_SESS = 10;
+const NET_MIN = 2, NET_MAX = 5;
 const STALE_MS = 15000, HB_MS = 5000;      // presence: heartbeat / ghost window
 const ACCENTS = ['#4ad0ff', '#6aff8a', '#ff6a4a', '#c07aff', '#ffd24a'];
 
@@ -69,7 +69,8 @@ const Net = {
     } catch (_) { this.off = 0; }
   },
 
-  async join() {
+  /* named world → deterministic room: everyone who picks world N lands together */
+  async join(world) {
     if (FB_CFG.apiKey.startsWith('PASTE')) { this.lobby('NEEDS API KEY — see README'); return; }
     if (!window.firebase || !firebase.firestore) { this.lobby('UPLINK LIBRARY MISSING'); return; }
     this.aborted = false;
@@ -78,11 +79,9 @@ const Net = {
     this.db = firebase.firestore();
     await this.calibrateClock();
     this.joinAt = this.serverNow() - 500;
-    for (let s = 0; s < NET_SESS; s++) {
-      if (this.aborted) return;
-      if (await this.trySession(s)) return;
-    }
-    if (!this.aborted) this.lobby('ALL SESSIONS FULL — try again soon');
+    if (this.aborted) return;
+    const ok = await this.trySession('world-' + world);
+    if (!ok && !this.aborted) this.lobby('WORLD ' + world + ' FULL — pick another');
   },
 
   /* leave the lobby cleanly — aborts any in-flight join, drops the room */
@@ -256,15 +255,6 @@ const Net = {
     this.unsubs.push(this.snapRef.onSnapshot(d => {
       if (!this.isHost && d.exists) this.lastSnap = d.data();
     }));
-  },
-
-  rollOver(s) {
-    // current session went live without us — hop to the next one
-    this.leaveRoom();
-    this.session = -1; this.started = false;
-    if (s + 1 < NET_SESS)
-      this.trySession(s + 1).then(ok => { if (!ok) this.lobby('NO OPEN SESSIONS'); });
-    else this.lobby('NO OPEN SESSIONS');
   },
 
   async markInMatch() {

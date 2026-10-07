@@ -753,7 +753,12 @@ function updatePickups(dt) {
     p.m.position.y = 0.5 + Math.sin(p.t * 3) * 0.12;
     const d = Math.hypot(p.m.position.x - Player.pos.x, p.m.position.z - Player.pos.z);
     if (d < 1.6) {
-      if (p.type === 'ammo') { Player.reserve = Math.min(480, Player.reserve + 40); UI.toast('+40 AMMO'); }
+      if (p.type === 'ammo') {
+        if (Player.unit === 'medic') {          // blue cubes are capacitor charge for medics
+          Player.energy = Math.min(Player.energyMax, Player.energy + 35);
+          UI.toast('+35 ENERGY');
+        } else { Player.reserve = Math.min(480, Player.reserve + 40); UI.toast('+40 AMMO'); }
+      }
       else { Player.heal(30); UI.toast('+30 VITALS'); }
       Audio2.pickup();
       if (Net.on) Net.tookPickup(p);

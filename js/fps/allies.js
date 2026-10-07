@@ -3,14 +3,15 @@
    ============================================================ */
 
 const PROMOTE_KILLS = 50;                // your zerg kills to take command
+const SQUAD_LEADERS = 2;                 // command is shared — two marines can hold the star
 
 const Allies = {
   list: [],
   cmd: 'push',                      // 'push' | 'fall' — your last order
   radioT: 0,                        // global radio throttle
   hurtBarkT: 0,                     // cooldown on 'cover the LT' barks
-  names: ['RAYNOR', 'DIAZ', 'HORNER', 'TYCUS', 'SWANN', 'VOGEL', 'BISHOP'],
-  accents: [0xffd24a, 0x4ad0ff, 0x6aff8a, 0xff6a4a, 0xc07aff, 0xff9a3a, 0x7ae8d0],
+  names: ['RAYNOR', 'DIAZ', 'HORNER', 'TYCUS', 'SWANN', 'VOGEL', 'BISHOP', 'CADE', 'JENSEN'],
+  accents: [0xffd24a, 0x4ad0ff, 0x6aff8a, 0xff6a4a, 0xc07aff, 0xff9a3a, 0x7ae8d0, 0xff6ac0, 0x9dff4a],
   // wedge slots behind the leader, in leader-local space {x, z}
   // (local -z is the facing direction, so +z trails behind)
   slots: [
@@ -18,13 +19,19 @@ const Allies = {
     { x: -4.4, z: 4.6 }, { x: 4.4, z: 4.6 },      // wide pair
     { x: -1.5, z: 4.6 }, { x: 1.5, z: 4.6 },      // inner pair
     { x: 0, z: 6.2 },                              // rear guard
+    { x: -3.4, z: 6.4 }, { x: 3.4, z: 6.4 },      // rear wings
   ],
 };
 
+/* alive AI holding a star */
+function aiLeaders() { return Allies.list.filter(a => a.leader && !a.dead); }
+/* how many AI leaders should be on the field right now */
+function leaderCap() { return SQUAD_LEADERS - (Game.leader ? 1 : 0); }
+
 /* who's calling the shots — a random marine leads until you're promoted */
 function squadLeader() {
-  if (Game.leader) return null;
-  return Allies.list.find(a => a.leader && !a.dead) || null;
+  if (Game.leader) return null;                          // you anchor when you hold a star
+  return aiLeaders()[0] || null;                         // first co-leader anchors the wedge
 }
 
 /* ---------- squad comms ---------- */
@@ -479,9 +486,12 @@ function spawnAllies() {
   clearAllies();
   if (Net.on) { buildSquadHud(); return; }   // online: the squad is real players
   const n = Allies.names.length;
-  const leadIdx = Math.floor(Math.random() * n);      // random marine leads
+  const li1 = Math.floor(Math.random() * n);          // two marines share command
+  let li2 = Math.floor(Math.random() * n);
+  while (li2 === li1) li2 = Math.floor(Math.random() * n);
   for (let i = 0; i < n; i++) {
-    const mesh = i === leadIdx                    // commander wears the marauder chassis
+    const isLead = i === li1 || i === li2;            // commanders wear marauder chassis
+    const mesh = isLead
       ? buildMarauderMesh(Allies.accents[i])
       : buildMarineMesh(Allies.accents[i]);
     // spawn in the wedge behind the player's facing dir
@@ -497,9 +507,9 @@ function spawnAllies() {
       idx: i,
       name: Allies.names[i],
       accent: '#' + Allies.accents[i].toString(16).padStart(6, '0'),
-      leader: i === leadIdx,
-      marFrame: i === leadIdx,               // wearing the marauder chassis?
-      hp: i === leadIdx ? 150 : 90, maxHp: i === leadIdx ? 150 : 90,
+      leader: isLead,
+      marFrame: isLead,                    // wearing the marauder chassis?
+      hp: isLead ? 150 : 90, maxHp: isLead ? 150 : 90,
       yaw: Player.yaw,
       dead: false, gone: false, deathT: 0,
       fireT: 0.4 + i * 0.15, retargetT: i * 0.12,
@@ -528,7 +538,7 @@ function buildSquadHud() {
   const sq = document.getElementById('squad');
   if (!sq) return;
   let html = Allies.list.map((a, i) =>
-    `<div class="chip" id="chip${i}"><b style="color:${a.accent}">${a.leader && !Game.leader ? '★ ' : ''}${a.name}</b><i><u></u></i></div>`
+    `<div class="chip" id="chip${i}"><b style="color:${a.accent}">${a.leader ? '★ ' : ''}${a.name}</b><i><u></u></i></div>`
   ).join('');
   if (Net.on) {                              // chips for every remote marine
     html = `<div class="chip you" id="chipYou"><b>${Game.leader ? '★ ' : ''}YOU</b><i><u></u></i></div>`;
@@ -573,14 +583,13 @@ function updateSquadHud() {
 /* ---------- command frame swap — whoever leads wears the marauder chassis ---------- */
 function swapAllyFrame(a) {
   const col = parseInt(a.accent.slice(1), 16);
-  const nm = (a.leader && !Game.leader)
-    ? buildMarauderMesh(col) : buildMarineMesh(col);
+  const nm = a.leader ? buildMarauderMesh(col) : buildMarineMesh(col);
   nm.position.copy(a.mesh.position);
   nm.rotation.y = a.mesh.rotation.y;
   Enemies.scene.remove(a.mesh);
   Enemies.scene.add(nm);
   a.mesh = nm; a.pos = nm.position;
-  a.marFrame = a.leader && !Game.leader;
+  a.marFrame = a.leader;
   nm.userData.ally = a;                           // keep the medic-beam tag
   if (a.hp < a.maxHp) setMarineScratches(nm, a.hp / a.maxHp);
 }
@@ -589,7 +598,14 @@ function swapAllyFrame(a) {
 function promoteToLeader() {
   Game.leader = true;
   setUnit('marauder');                       // command comes with the heavy frame
-  for (const a of Allies.list) if (a.leader && !a.dead) swapAllyFrame(a);  // ex-CDR back to marine kit
+  // you take one star — keep a single AI co-leader, demote the extra
+  const leads = aiLeaders();
+  for (let i = 1; i < leads.length; i++) {
+    const a = leads[i];
+    a.leader = false;
+    a.maxHp = 90; a.hp = Math.min(90, a.hp);          // back to marine kit
+    swapAllyFrame(a);
+  }
   UI.waveBanner('PROMOTED — MARAUDER COMMAND FRAME');
   UI.toast('RAYNOR: "You\'ve got command — and the big guns. Push the hives!"');
   Audio2.pickup();
@@ -610,16 +626,17 @@ function damageAlly(a, dmg, fromPos) {
     a.mesh.userData.barFg.visible = false;
     if (a.mesh.userData.star) a.mesh.userData.star.visible = false;
     let extra = '';
-    if (a.leader && !Game.leader) {
-      // command passes to a random surviving marine
+    if (a.leader) {
       a.leader = false;
-      const alive = Allies.list.filter(x => !x.dead);
-      if (alive.length) {
-        const nl = alive[Math.floor(Math.random() * alive.length)];
+      // top command back up — promote survivors until two stars fly again
+      while (aiLeaders().length < leaderCap()) {
+        const cand = Allies.list.filter(x => !x.dead && !x.leader);
+        if (!cand.length) break;
+        const nl = cand[Math.floor(Math.random() * cand.length)];
         nl.leader = true;
         nl.maxHp = 150; nl.hp = Math.min(150, nl.hp + 60);   // heavy frame
         swapAllyFrame(nl);
-        extra = ' — ' + nl.name + ' TAKES COMMAND';
+        extra += ' — ' + nl.name + ' TAKES COMMAND';
         allySay(nl, pick(BARKS.cmdTaken), true);
       }
       buildSquadHud();
@@ -683,7 +700,7 @@ function updateAllies(dt) {
   }
   for (const a of Allies.list) {
     // whoever holds command wears the marauder chassis — heal any missed swap
-    if (!a.dead && (a.leader && !Game.leader) !== !!a.marFrame) swapAllyFrame(a);
+    if (!a.dead && !!a.leader !== !!a.marFrame) swapAllyFrame(a);
     const m = a.mesh;
 
     if (a.dead) {
@@ -837,7 +854,7 @@ function updateAllies(dt) {
     // leader star — floats over whoever currently has command
     const star = m.userData.star;
     if (star) {
-      star.visible = a.leader && !Game.leader;
+      star.visible = a.leader;
       if (star.visible) star.position.y = 2.45 + Math.sin(Game.time * 3 + a.idx) * 0.06;
     }
     // health bar

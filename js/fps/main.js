@@ -56,9 +56,12 @@ const UI = {
     // red ring while hurt — base by hp, hit-flash on top; always cleared at full
     $id('vignette').style.opacity = Math.max(Player.hp < 30 ? 0.45 : 0, this.flashOp);
 
-    $id('ammo-mag').textContent = Player.unit === 'medic' ? '∞' : Player.mag;
-    $id('ammo-res').textContent = Player.unit === 'medic' ? '∞' : Player.reserve;
-    $id('ammo').classList.toggle('low', Player.unit !== 'medic' && Player.mag <= 8);
+    const med = Player.unit === 'medic';
+    $id('ammo-mag').textContent = med ? Math.ceil(Player.energy) : Player.mag;
+    $id('ammo-res').textContent = med ? 'NRG' : Player.reserve;
+    $id('ammo').classList.toggle('low', med ? Player.energy <= 25 : Player.mag <= 8);
+    const rh = $id('reload-hint');
+    if (rh) rh.textContent = med && Player.energy <= 0 ? 'NO ENERGY — GRAB A CUBE' : '';
     $id('wave-num').textContent = 'WAVE ' + Math.max(1, Waves.wave);
     $id('score').textContent = 'KILLS ' + Enemies.kills;
     $id('hive-num').textContent = 'HIVES ' + Waves.hivesLeft() + '/4';
@@ -236,15 +239,23 @@ function startGame(online) {
   canvasClick();
 }
 
-// ONLINE — join a shared session; waits for at least 2 marines, caps at 5
+// ONLINE — pick a named world; everyone on the same world drops together
 function startOnline() {
   if (Net.chan || Net.on) return;               // already in
   $id('startscreen').classList.add('hidden');
   $id('lobbyscreen').classList.remove('hidden');
-  Net.lobby('CONTACTING UPLINK…');
-  Net.join();
-  // nobody else is playing → deploy solo under online rules, squad stays empty
+  Net.lobby('PICK A WORLD');
+}
+
+function joinWorld(w) {
   clearTimeout(Game._soloT);
+  Net.bail();                                    // abort any in-flight join / other world
+  document.querySelectorAll('.world').forEach(b =>
+    b.classList.toggle('on', b.dataset.w === w));
+  $id('lobbyscreen').classList.remove('hidden'); // bail() hides it — keep picker up
+  Net.lobby('CONTACTING UPLINK…');
+  Net.join(w);
+  // nobody else is playing → deploy solo under online rules, squad stays empty
   Game._soloT = setTimeout(() => {
     if (!Net.on && !Net.started && !Game.running) {
       Net.bail();
@@ -258,6 +269,7 @@ function startOnline() {
 function respawn() {
   Player.dead = false;
   Player.hp = Math.round(Player.maxHp * 0.6);
+  if (Player.unit === 'medic') Player.energy = Player.energyMax;
   Player.mag = Player.magSize;
   Player.reserve = Math.max(Player.reserve, Player.unit === 'marauder' ? 24 : 96);
   Player.reloading = false; Player.firing = Player.firingMouse = false;
@@ -398,8 +410,11 @@ window.addEventListener('load', () => {
   $id('btn-lobby-cancel').onclick = () => {
     clearTimeout(Game._soloT);
     Net.bail();
+    document.querySelectorAll('.world').forEach(b => b.classList.remove('on'));
     $id('startscreen').classList.remove('hidden');
   };
+  document.querySelectorAll('.world').forEach(b =>
+    b.addEventListener('click', () => { joinWorld(b.dataset.w); canvasClick(); }));
   $id('btn-retry').onclick = restart;
   $id('btn-vretry').onclick = restart;
   window.addEventListener('resize', () => {
