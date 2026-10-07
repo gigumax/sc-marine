@@ -444,7 +444,9 @@ function spawnAllies() {
   const n = Allies.names.length;
   const leadIdx = Math.floor(Math.random() * n);      // random marine leads
   for (let i = 0; i < n; i++) {
-    const mesh = buildMarineMesh(Allies.accents[i]);
+    const mesh = i === leadIdx                    // commander wears the marauder chassis
+      ? buildMarauderMesh(Allies.accents[i])
+      : buildMarineMesh(Allies.accents[i]);
     // spawn in the wedge behind the player's facing dir
     const sl = Allies.slots[i];
     const sin = Math.sin(Player.yaw), cos = Math.cos(Player.yaw);
@@ -528,10 +530,24 @@ function updateSquadHud() {
   }
 }
 
+/* ---------- command frame swap — whoever leads wears the marauder chassis ---------- */
+function swapAllyFrame(a) {
+  const col = parseInt(a.accent.slice(1), 16);
+  const nm = (a.leader && !Game.leader)
+    ? buildMarauderMesh(col) : buildMarineMesh(col);
+  nm.position.copy(a.mesh.position);
+  nm.rotation.y = a.mesh.rotation.y;
+  Enemies.scene.remove(a.mesh);
+  Enemies.scene.add(nm);
+  a.mesh = nm; a.pos = nm.position;
+  if (a.hp < a.maxHp) setMarineScratches(nm, a.hp / a.maxHp);
+}
+
 /* ---------- promotion: 50 kills → you take command ---------- */
 function promoteToLeader() {
   Game.leader = true;
   setUnit('marauder');                       // command comes with the heavy frame
+  for (const a of Allies.list) if (a.leader && !a.dead) swapAllyFrame(a);  // ex-CDR back to marine kit
   UI.waveBanner('PROMOTED — MARAUDER COMMAND FRAME');
   UI.toast('RAYNOR: "You\'ve got command — and the big guns. Push the hives!"');
   Audio2.pickup();
@@ -559,6 +575,8 @@ function damageAlly(a, dmg, fromPos) {
       if (alive.length) {
         const nl = alive[Math.floor(Math.random() * alive.length)];
         nl.leader = true;
+        nl.maxHp = 150; nl.hp = Math.min(150, nl.hp + 60);   // heavy frame
+        swapAllyFrame(nl);
         extra = ' — ' + nl.name + ' TAKES COMMAND';
         allySay(nl, pick(BARKS.cmdTaken), true);
       }

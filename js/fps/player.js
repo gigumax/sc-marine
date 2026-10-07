@@ -554,7 +554,12 @@ function updatePlayer(dt) {
     Player.cam.fov += (targetFov - Player.cam.fov) * Math.min(1, dt * 12);
     Player.cam.updateProjectionMatrix();
   }
-  document.getElementById('crosshair').classList.toggle('aim', Player.aiming);
+  const chEl = document.getElementById('crosshair');
+  chEl.classList.toggle('aim', Player.aiming);
+  // marauder: reticle sits over whichever tube fires next
+  const mar = Player.unit === 'marauder';
+  chEl.classList.toggle('arm-l', mar && Player.armSide < 0);
+  chEl.classList.toggle('arm-r', mar && Player.armSide > 0);
 
   // gun sway + recoil kick
   const g = Player.gun;
@@ -605,7 +610,9 @@ const UNITS = {
 
 function setUnit(unit) {
   const u = UNITS[unit] || UNITS.marine;
-  Player.unit = unit in UNITS ? unit : 'marine';
+  // marauder is command issue — marine until you earn the star
+  Player.unit = (unit === 'marauder' && !Game.leader) ? 'marine'
+              : (unit in UNITS ? unit : 'marine');
   Player.maxHp = u.hp; Player.hp = u.hp;
   Player.magSize = u.mag; Player.mag = u.mag; Player.reserve = u.reserve;
   Player.fireRate = u.rate; Player.dmg = u.dmg; Player.hsDmg = u.hs;

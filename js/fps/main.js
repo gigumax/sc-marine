@@ -295,6 +295,7 @@ function restart() {
   if (Net.on && !Net.isHost) { UI.toast('WAITING ON FIELD COMMAND'); return; }
   Enemies.kills = 0;
   if (Net.on) { Net.resetMatch(); Net.send('restart', {}); }
+  Game.leader = false;                   // command resets — re-earn the star
   setUnit(Game.unit);                    // restores unit hp/mag/reserve
   Player.pos.set(0, 0, 0); Player.vel.set(0, 0, 0);
   Player.dead = false; Player.reloading = false;
@@ -385,6 +386,10 @@ window.addEventListener('load', () => {
   $id('visor').style.backgroundImage = `url(${visorTexture('scratch')})`;
   $id('visor-cracks').style.backgroundImage = `url(${visorTexture('crack')})`;
   document.querySelectorAll('.cls').forEach(b => b.onclick = () => {
+    if (b.dataset.unit === 'marauder' && !Game.leader) {
+      UI.toast('MARAUDER IS COMMAND ISSUE — EARN \u2605 AT 50 KILLS');
+      return;
+    }
     document.querySelectorAll('.cls').forEach(x => x.classList.toggle('on', x === b));
     Game.unit = b.dataset.unit;
   });
