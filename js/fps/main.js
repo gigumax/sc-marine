@@ -311,7 +311,7 @@ function restart() {
   setUnit(Game.unit);                    // restores unit hp/mag/reserve
   Player.pos.set(0, 0, 0); Player.vel.set(0, 0, 0);
   Player.dead = false; Player.reloading = false;
-  Player.firing = false; Player.firingMouse = false; Player.aiming = false; Player.aimingMouse = false;
+  Player.firing = false; Player.firingMouse = false; Player.aiming = false; Player.aimingMouse = false; Player.ads = false;
   Player.yaw = Math.PI; Player.pitch = 0;
   Waves.wave = 0; Waves.t = 0; Waves.spawnT = 1.2;
   Game.won = false; Game.time = 0; Game.leader = false;
@@ -455,7 +455,10 @@ window.addEventListener('load', () => {
       if (!Player.dead) {
         const pad = pollPad(dt) || { moveX: 0, moveZ: 0, sprint: false, fire: false, aim: false };
         Player.firing = Player.firingMouse || pad.fire;
-        Player.aiming = Player.aimingMouse || pad.aim;
+        // firing counts as aiming for accuracy/look/walk — ads stays
+        // true ADS only so the FOV never zooms on its own
+        Player.ads = Player.aimingMouse || pad.aim;
+        Player.aiming = Player.ads || Player.firing;
         // merge keyboard
         const kx = (KEYS['d'] ? 1 : 0) - (KEYS['a'] ? 1 : 0) + pad.moveX;
         const kz = (KEYS['s'] ? 1 : 0) - (KEYS['w'] ? 1 : 0) + pad.moveZ;

@@ -14,7 +14,7 @@ const Player = {
   unit: 'marine',                         // 'marine' | 'marauder'
   fireRate: 1 / 9, dmg: 16, hsDmg: 34,
   reloading: false, reloadT: 0,
-  fireT: 0, firing: false, aiming: false,
+  fireT: 0, firing: false, aiming: false, ads: false,
   firingMouse: false, aimingMouse: false,
   dead: false,
   kills: 0,                          // your zerg kills → 50 earns command
@@ -620,14 +620,14 @@ function updatePlayer(dt) {
   Player.cam.rotation.x = Player.pitch + Player.recoil * 0.03 + sx;
   Player.cam.rotation.z = sy * 0.5;
 
-  // FOV: aim zoom
-  const targetFov = Player.aiming ? 52 : 75;
+  // FOV: aim zoom — only on real ADS; firing gets the accuracy, not the zoom
+  const targetFov = Player.ads ? 52 : 75;
   if (Math.abs(Player.cam.fov - targetFov) > 0.5) {
     Player.cam.fov += (targetFov - Player.cam.fov) * Math.min(1, dt * 12);
     Player.cam.updateProjectionMatrix();
   }
   const chEl = document.getElementById('crosshair');
-  chEl.classList.toggle('aim', Player.aiming);
+  chEl.classList.toggle('aim', Player.ads);
   // marauder: reticle sits over whichever tube fires next
   const mar = Player.unit === 'marauder';
   chEl.classList.toggle('arm-l', mar && Player.armSide < 0);
@@ -636,8 +636,8 @@ function updatePlayer(dt) {
   // gun sway + recoil kick
   const g = Player.gun;
   g.position.z = -0.45 + Player.recoil * 0.07;
-  g.position.x = 0.26 + Math.cos(Player.bobT) * 0.008 - (Player.aiming ? 0.26 : 0);
-  g.position.y = -0.22 + Math.sin(Player.bobT * 2) * 0.006 + (Player.aiming ? 0.115 : 0);
+  g.position.x = 0.26 + Math.cos(Player.bobT) * 0.008 - (Player.ads ? 0.26 : 0);
+  g.position.y = -0.22 + Math.sin(Player.bobT * 2) * 0.006 + (Player.ads ? 0.115 : 0);
   g.rotation.x = Player.reloading ? -0.7 : Player.recoil * 0.12;
 
   // marauder launcher arms — sway/bob + the fired tube jerks back on its own
@@ -649,8 +649,8 @@ function updatePlayer(dt) {
     if (ud.light.intensity > 0) ud.light.intensity -= dt * 26;
     const r = ud.recoil, s = Math.sign(ud.base.x);
     arm.position.set(
-      ud.base.x * (Player.aiming ? 0.5 : 1) + Math.cos(Player.bobT) * 0.008,
-      ud.base.y + Math.sin(Player.bobT * 2) * 0.008 - r * 0.03 + (Player.aiming ? 0.1 : 0),
+      ud.base.x * (Player.ads ? 0.5 : 1) + Math.cos(Player.bobT) * 0.008,
+      ud.base.y + Math.sin(Player.bobT * 2) * 0.008 - r * 0.03 + (Player.ads ? 0.1 : 0),
       ud.base.z + r * 0.26);
     arm.rotation.x = (Player.reloading ? -0.45 : 0) + r * 0.5;
     arm.rotation.y = -s * 0.16;
