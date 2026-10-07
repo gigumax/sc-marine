@@ -107,6 +107,6 @@ const Audio2 = {
   suitCritical() {
     this.tone(880, 0.12, 'square', 0.08, 440);       // klaxon chirp under the voice
     this.tone(880, 0.12, 'square', 0.08, 440);
-    this.say('Suit critical', { rate: 0.95, pitch: 1.1 });
+    this.say('Suit... critical', { rate: 0.95, pitch: 1.1 });
   },
 };

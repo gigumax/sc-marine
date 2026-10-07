@@ -39,7 +39,7 @@ const Net = {
   evRef: null, stateRef: null, snapRef: null,
   unsubs: [], hbT: null,
   sendT: 0, snapT: 0, pruneT: 0, countT: -1,
-  started: false, dead: false,
+  started: false, dead: false, hostHint: null,
   nextEid: 1, nextPk: 1, lastSnap: null,
   off: 0, joinAt: 0,
 
@@ -151,10 +151,10 @@ const Net = {
         // drop avatar meshes of players who left mid-match
         for (const id in this.peers)
           if (!mem[id]) { Enemies.scene.remove(this.peers[id].mesh); delete this.peers[id]; buildSquadHud(); }
-        // host migration: smallest remaining id takes over the sim
+        // host migration: smallest remaining CONFIRMED id takes over the sim
         if (this.started && this.on && !mem[this.hostId]) {
-          const ids = Object.keys(mem).sort();
-          this.hostId = ids[0];
+          const ids = Object.keys(mem).filter(id => this.confirmed(mem[id])).sort();
+          this.hostId = ids[0] || this.id;
           if (this.hostId === this.id && !this.isHost) {
             this.isHost = true;
             UI.waveBanner('FIELD COMMAND TRANSFERRED — YOU LEAD');
@@ -163,18 +163,22 @@ const Net = {
         if (done) {
           // mid-lobby arrivals fill the room — gate on confirmed heartbeats
           const live = Object.values(mem).filter(m => this.confirmed(m)).length;
-          if (!this.started && live >= NET_MIN) this.maybeStart();
-          if (!this.started) this.lobby(live >= NET_MIN ? 'SQUAD READY' : `WAITING — ${live}/${NET_MIN} MARINES`);
+          // a live match only counts if the carrier is confirmed — a ghost's
+          // stale inMatch doc can't be hosting anything
+          const inMatch = Object.values(mem).some(m => m.inMatch && this.confirmed(m));
+          if (!this.started && !inMatch && live >= NET_MIN) this.maybeStart();
+          if (!this.started) this.lobby(inMatch ? 'MATCH LIVE — DROPPING IN…'
+            : live >= NET_MIN ? 'SQUAD READY' : `WAITING — ${live}/${NET_MIN} MARINES`);
           if (meGone) return;
           // match went live while I was a member — drop in, don't roll over
-          if (!this.started && Object.values(mem).some(m => m.inMatch)) this.begin();
+          if (!this.started && inMatch) this.begin();
           return;
         }
         // first sync: decide if we stay
         if (this.aborted) { leave(); finish(false); return; }
         const n = Object.keys(mem).length;
         const full = n > NET_MAX;
-        const running = Object.values(mem).some(m => m.inMatch && m.id !== this.id);
+        const running = Object.values(mem).some(m => m.inMatch && m.id !== this.id && this.confirmed(m));
         if (full) { leave(); finish(false); return; }
         this.roomRef = room; this.membersRef = membersRef; this.myRef = myRef;
         this.chan = room;
@@ -262,8 +266,9 @@ const Net = {
   },
 
   maybeStart() {
-    // deterministic host = smallest id present
-    const ids = Object.keys(this.members).sort();
+    // deterministic host = smallest CONFIRMED id — ghost heartbeats can't host
+    const ids = Object.keys(this.members)
+      .filter(id => this.confirmed(this.members[id])).sort();
     this.hostId = ids[0];
     if (ids[0] !== this.id) return;
     if (this.countT >= 0) return;
@@ -283,10 +288,12 @@ const Net = {
     this.started = true; this.on = true; this.countT = -1;
     this.markInMatch();
     const ids = Object.keys(this.members).sort();
-    // late join? keep the incumbent host — the sim lives on their client
-    const incumbents = ids.filter(id => id !== this.id &&
-      this.members[id].inMatch && this.confirmed(this.members[id]));
-    this.hostId = this.hostHint || (incumbents.length ? incumbents[0] : ids[0]);
+    // ghosts (pre-join heartbeats) can never host — only confirmed members are
+    // eligible: the start sender's hint, then a confirmed incumbent in a live
+    // match, then the smallest confirmed id
+    const conf = ids.filter(id => this.confirmed(this.members[id]));
+    const incumbents = conf.filter(id => id !== this.id && this.members[id].inMatch);
+    this.hostId = this.hostHint || incumbents[0] || conf[0] || ids[0];
     this.isHost = this.hostId === this.id;
     // spawn order → spread drop positions around origin
     const slot = ids.indexOf(this.id);
@@ -493,7 +500,10 @@ const Net = {
       this.countT -= dt;
       const c = Math.ceil(this.countT);
       if (c > 0) this.lobby(`DROP IN ${c}…`);
-      else { this.send('start', { h: this.id }); this.begin(); }
+      // sender claims host — set the hint BEFORE sending so even a begin()
+      // triggered inside send()'s fanout (a member flipping inMatch) still
+      // elects the countdown sender, not a random incumbent
+      else { this.hostHint = this.id; this.send('start', { h: this.id }); this.begin(); }
       return;
     }
     if (!this.on) return;

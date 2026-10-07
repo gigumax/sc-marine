@@ -439,7 +439,15 @@ window.addEventListener('load', () => {
     const dt = Math.min(0.05, (t - last) / 1000);
     last = t;
 
-    Net.update(dt);                              // lobby countdown + sync always ticks
+    try {
+      Net.update(dt);                          // lobby countdown + sync always ticks
+    } catch (err) {                            // a net hiccup must not freeze the frame
+      if (!Game._netErrT || performance.now() - Game._netErrT > 4000) {
+        Game._netErrT = performance.now();
+        console.error('[net]', err);
+        UI.toast('NET ERR: ' + err.message);
+      }
+    }
 
     if (Game.running && !Game.paused) {
       try {
