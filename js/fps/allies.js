@@ -9,14 +9,15 @@ const Allies = {
   cmd: 'push',                      // 'push' | 'fall' — your last order
   radioT: 0,                        // global radio throttle
   hurtBarkT: 0,                     // cooldown on 'cover the LT' barks
-  names: ['RAYNOR', 'DIAZ', 'HORNER', 'TYCUS', 'SWANN'],
-  accents: [0xffd24a, 0x4ad0ff, 0x6aff8a, 0xff6a4a, 0xc07aff],
+  names: ['RAYNOR', 'DIAZ', 'HORNER', 'TYCUS', 'SWANN', 'VOGEL', 'BISHOP'],
+  accents: [0xffd24a, 0x4ad0ff, 0x6aff8a, 0xff6a4a, 0xc07aff, 0xff9a3a, 0x7ae8d0],
   // wedge slots behind the leader, in leader-local space {x, z}
   // (local -z is the facing direction, so +z trails behind)
   slots: [
     { x: -2.4, z: 2.6 }, { x: 2.4, z: 2.6 },      // flank pair
     { x: -4.4, z: 4.6 }, { x: 4.4, z: 4.6 },      // wide pair
-    { x: 0, z: 5.6 },                              // rear guard
+    { x: -1.5, z: 4.6 }, { x: 1.5, z: 4.6 },      // inner pair
+    { x: 0, z: 6.2 },                              // rear guard
   ],
 };
 
