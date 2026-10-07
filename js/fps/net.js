@@ -16,10 +16,12 @@
    ============================================================ */
 
 const FB_CFG = {
-  apiKey: 'PASTE_API_KEY_HERE',            // ← Firebase web config
-  authDomain: 'PASTE_PROJECT.firebaseapp.com',
-  projectId: 'PASTE_PROJECT',
-  appId: 'PASTE_APP_ID',
+  apiKey: 'AIzaSyAiqHqRVzxoOTtX-EPNaxeYXzrrI_L3vSU',
+  authDomain: 'starcraft-marine.firebaseapp.com',
+  projectId: 'starcraft-marine',
+  storageBucket: 'starcraft-marine.firebasestorage.app',
+  messagingSenderId: '378764253130',
+  appId: '1:378764253130:web:68d91f0ce7b162f7efe133',
 };
 const NET_MIN = 2, NET_MAX = 5, NET_SESS = 10;
 const STALE_MS = 15000, HB_MS = 5000;      // presence: heartbeat / ghost window
