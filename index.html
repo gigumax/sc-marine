@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Starcraft — Marine</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app"></div>
+
+<!-- ===================== HUD ===================== -->
+<div id="hud" class="hidden">
+  <!-- crosshair -->
+  <div id="crosshair"><i></i><i></i><i></i><i></i><b id="ch-dot"></b></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+
+  <!-- damage vignette + flash -->
+  <div id="vignette"></div>
+  <div id="heal-flash"></div>
+  <div id="visor"></div>
+  <div id="visor-cracks"></div>
+  <div id="helm-mask"></div>
+
+  <!-- top -->
+  <div id="wave-banner" class="hidden"></div>
+  <div id="top-left">
+    <div id="wave-num">WAVE 1</div>
+    <div id="hive-num">HIVES 4/4</div>
+    <div id="score">KILLS 0</div>
+    <div id="rank">PVT · 0/50</div>
+    <div id="objective">FOLLOW ★ — DESTROY THE HIVES</div>
+    <div id="mode-tag" class="hidden">ONLINE</div>
+    <div id="lobby" class="hidden">SEARCHING FOR SQUAD…</div>
+  </div>
+  <canvas id="radar" width="170" height="170"></canvas>
+
+  <!-- bottom -->
+  <div id="chat"></div>
+  <div id="bottom-left">
+    <div id="comms">
+      <button data-cmd="fall"><i>Z</i>FALL BACK</button>
+      <button data-cmd="push"><i>X</i>PUSH UP</button>
+      <button data-cmd="thanks"><i>C</i>THANKS</button>
+      <button data-cmd="sorry"><i>V</i>SORRY</button>
+    </div>
+    <div id="hp-label">VITALS</div>
+    <div id="hp-bar"><i id="hp-fill"></i><span id="hp-num">100</span></div>
+    <div id="suit-warn" class="hidden">⚠ SUIT CRITICAL</div>
+    <div id="squad"></div>
+  </div>
+  <div id="bottom-right">
+    <div id="ammo"><b id="ammo-mag">32</b><span>/</span><span id="ammo-res">320</span></div>
+    <div id="ammo-label">C-14 GAUSS — <span id="reload-hint"></span></div>
+  </div>
+
+  <div id="toast"></div>
+  <div id="pad-status">🎮 <span id="pad-label">no pad</span></div>
+</div>
+
+<!-- shown when pointer unlocks — the match keeps running -->
+<div id="paused" class="overlay hidden">
+  <div class="panel">
+    <h2>SIGNAL LOST</h2>
+    <p>Click to resume control — the swarm doesn't pause</p>
+  </div>
+</div>
+
+<!-- online lobby — matchmaking screen -->
+<div id="lobbyscreen" class="overlay hidden">
+  <div class="panel">
+    <h1>UPLINK<span>SQUAD MATCHMAKING</span></h1>
+    <p class="obj">Drops need <b>at least 2 marines</b> — rooms cap at <b>5</b>,<br>full ones roll over to the next channel.</p>
+    <div id="lobby-status">CONTACTING UPLINK…</div>
+    <div id="lobby-players"></div>
+    <button id="btn-lobby-cancel" class="ghost">ABORT DROP</button>
+  </div>
+</div>
+
+<!-- start screen -->
+<div id="startscreen" class="overlay">
+  <div class="panel">
+    <h1>STARCRAFT<span>MARINE</span></h1>
+    <p class="obj">Destroy the <b>4 spawn-hives</b> marked by purple beacons, then clear the swarm.<br>
+      Follow the <b>★-marked marine</b> — rack up <b>50 zerg kills</b> to take command.<br>
+      <b>Online Match</b>: squad up with 2–5 real marines — the zerg hunt all of you.<br>
+      Watch for <b>roaches</b> — they spit acid. <b>Headshots</b> drop lings fast.</p>
+    <div class="controls">
+      <div>
+        <h3>Mouse &amp; Keyboard</h3>
+        <ul>
+          <li><b>WASD</b> move · <b>Shift</b> sprint · <b>Space</b> jump</li>
+          <li><b>Mouse</b> look · <b>LMB</b> fire (auto) · <b>RMB</b> aim</li>
+          <li><b>R</b> reload · <b>Esc</b> release mouse</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Xbox Controller</h3>
+        <ul>
+          <li><b>L-stick</b> move (click = sprint) · <b>R-stick</b> look</li>
+          <li><b>RT</b> fire · <b>LT</b> aim · <b>X</b> reload · <b>A</b> jump</li>
+          <li><b>Start</b> begin / restart</li>
+        </ul>
+      </div>
+    </div>
+    <div class="cls-row">
+      <button class="cls on" id="cls-marine" data-unit="marine"><b>MARINE</b><i>C-14 · 100HP · auto</i></button>
+      <button class="cls" id="cls-marauder" data-unit="marauder"><b>MARAUDER</b><i>PUNISHER · 300HP · heavy</i></button>
+    </div>
+    <div class="mode-row">
+      <button id="btn-solo">Solo Ops</button>
+      <button id="btn-online">Online Match</button>
+    </div>
+    <p class="fine">Fan-made homage for personal use. Not affiliated with Blizzard.</p>
+  </div>
+</div>
+
+<!-- victory screen -->
+<div id="victory" class="overlay hidden">
+  <div class="panel">
+    <h1 class="win">ZONE SECURE</h1>
+    <p id="win-stats"></p>
+    <button id="btn-vretry">Redeploy</button>
+  </div>
+</div>
+
+<!-- death screen -->
+<div id="gameover" class="overlay hidden">
+  <div class="panel">
+    <h1 class="dead">K.I.A.</h1>
+    <p id="death-stats"></p>
+    <button id="btn-retry">Redeploy</button>
+  </div>
+</div>
+
+<script src="js/lib/three.min.js"></script>
+<script src="js/lib/firebase-firestore-compat.js"></script>
+<script src="js/fps/audio.js"></script>
+<script src="js/fps/world.js"></script>
+<script src="js/fps/enemies.js"></script>
+<script src="js/fps/player.js"></script>
+<script src="js/fps/allies.js"></script>
+<script src="js/fps/net.js"></script>
+<script src="js/fps/main.js"></script>
+</body>
+</html>

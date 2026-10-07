@@ -1,0 +1,20 @@
+{
+  "name": "xbox-starcraft",
+  "version": "1.0.0",
+  "description": "A fan-made, StarCraft-style **first-person shooter** for **personal use**. You're a marine in a powered suit holding a night landing zone against waves of zerglings (and worse). Original code — all art is procedural primitives, all audio is synthesized. Not affiliated with Blizzard.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "rm -rf dist && mkdir -p dist && cp index.html style.css dist/ && cp -R js dist/ && wrangler deploy"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "wrangler": "^4.148.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2"
+  }
+}
