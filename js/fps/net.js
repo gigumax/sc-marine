@@ -89,7 +89,7 @@ const Net = {
   bail() {
     this.aborted = true;
     this.leaveRoom();
-    this.on = false; this.isHost = false; this.started = false;
+    this.on = false; this.isHost = false; this.started = false; this.hostHint = null;
     this.members = {}; this.peers = {};
     this.countT = -1; this.session = -1;
     const lb = document.getElementById('lobbyscreen');
@@ -120,6 +120,11 @@ const Net = {
   /* member doc counts as present if its heartbeat is fresh;
      null t = own pending write (serverTimestamp not yet resolved) */
   fresh(m) { return !m.t || this.serverNow() - m.t.toMillis() < STALE_MS; },
+
+  /* counts toward the drop only if its heartbeat was written after I
+     joined — a dead tab's frozen timestamp can never satisfy this */
+  confirmed(m) { return m.id === this.id || (m.t && m.t.toMillis() > this.joinAt && this.fresh(m)); },
+  liveCount()  { return Object.values(this.members).filter(m => this.confirmed(m)).length; },
 
   trySession(s) {
     return new Promise(resolve => {
@@ -157,12 +162,13 @@ const Net = {
           }
         }
         if (done) {
-          // mid-lobby arrivals fill the room
-          const n = Object.keys(mem).length;
-          if (!this.started && n >= NET_MIN) this.maybeStart();
-          if (!this.started) this.lobby(n >= NET_MIN ? 'SQUAD READY' : `WAITING — ${n}/${NET_MIN} MARINES`);
+          // mid-lobby arrivals fill the room — gate on confirmed heartbeats
+          const live = Object.values(mem).filter(m => this.confirmed(m)).length;
+          if (!this.started && live >= NET_MIN) this.maybeStart();
+          if (!this.started) this.lobby(live >= NET_MIN ? 'SQUAD READY' : `WAITING — ${live}/${NET_MIN} MARINES`);
           if (meGone) return;
-          if (!this.started && Object.values(mem).some(m => m.inMatch)) this.rollOver(s);
+          // match went live while I was a member — drop in, don't roll over
+          if (!this.started && Object.values(mem).some(m => m.inMatch)) this.begin();
           return;
         }
         // first sync: decide if we stay
@@ -170,12 +176,13 @@ const Net = {
         const n = Object.keys(mem).length;
         const full = n > NET_MAX;
         const running = Object.values(mem).some(m => m.inMatch && m.id !== this.id);
-        if (full || running) { leave(); finish(false); return; }
+        if (full) { leave(); finish(false); return; }
         this.roomRef = room; this.membersRef = membersRef; this.myRef = myRef;
         this.chan = room;
         this.unsubs.push(unsub);
         this.attachStreams();
         finish(true);
+        if (running) this.begin();        // match already live — drop straight in
       };
 
       // presence: write + heartbeat so survivors can sweep us if we vanish
@@ -216,7 +223,7 @@ const Net = {
         if (m.t && m.t.toMillis() < this.joinAt) return;
         const p = m.p || {};
         switch (m.e) {
-          case 'start':   if (!this.started) this.begin(); break;
+          case 'start':   if (!this.started) { this.hostHint = p.h; this.begin(); } break;
           case 'edmg':    if (this.isHost) this.hostEnemyHit(p); break;
           case 'sdmg':    if (this.isHost) this.hostHiveHit(p); break;
           case 'pdmg':    if (p.to === this.id && !Player.dead) damagePlayer(p.dmg, new THREE.Vector3(p.fx, 1, p.fz)); break;
@@ -283,10 +290,13 @@ const Net = {
 
   begin() {
     if (this.started) return;
-    this.started = true; this.on = true;
+    this.started = true; this.on = true; this.countT = -1;
     this.markInMatch();
     const ids = Object.keys(this.members).sort();
-    this.hostId = ids[0];
+    // late join? keep the incumbent host — the sim lives on their client
+    const incumbents = ids.filter(id => id !== this.id &&
+      this.members[id].inMatch && this.confirmed(this.members[id]));
+    this.hostId = this.hostHint || (incumbents.length ? incumbents[0] : ids[0]);
     this.isHost = this.hostId === this.id;
     // spawn order → spread drop positions around origin
     const slot = ids.indexOf(this.id);
@@ -482,11 +492,9 @@ const Net = {
   update(dt) {
     // countdown runs pre-match — before Net.on flips
     if (this.countT > 0 && !this.started) {
-      // someone left mid-countdown — drop below minimum → hold the drop.
-      // count by heartbeat freshness, not snapshot presence: a dead tab's
-      // doc lingers in this.members until the next snapshot refilters it,
-      // but its t ages out either way
-      const live = Object.values(this.members).filter(m => this.fresh(m)).length;
+      // someone left mid-countdown — hold the drop. gate on confirmed
+      // heartbeats (post-join writes): ghosts can start nothing
+      const live = this.liveCount();
       if (live < NET_MIN) {
         this.countT = -1;
         this.lobby(`WAITING — ${live}/${NET_MIN} MARINES`);
@@ -495,7 +503,7 @@ const Net = {
       this.countT -= dt;
       const c = Math.ceil(this.countT);
       if (c > 0) this.lobby(`DROP IN ${c}…`);
-      else { this.send('start', {}); this.begin(); }
+      else { this.send('start', { h: this.id }); this.begin(); }
       return;
     }
     if (!this.on) return;
