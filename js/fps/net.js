@@ -571,7 +571,11 @@ const Net = {
           if (e.deathT > 1.1) { Enemies.scene.remove(m); e.gone = true; delete this.eById[id]; }
         } else {
           updateCarcass(e, m, dt);                // same flop/gray/kick as host-side
-          if (e.netTo) m.position.lerp(e.netTo, Math.min(1, dt * 8));
+          if (e.gone) { delete this.eById[id]; continue; }
+          if (e.netTo) {                          // slide to net pos — but not y: carcasses sink
+            m.position.x += (e.netTo.x - m.position.x) * Math.min(1, dt * 8);
+            m.position.z += (e.netTo.z - m.position.z) * Math.min(1, dt * 8);
+          }
         }
         continue;
       }

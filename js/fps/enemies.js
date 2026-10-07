@@ -722,6 +722,11 @@ function updateCarcass(e, m, dt) {
     const from = carcassKicker(m.position);
     if (from) { e.kickCd = 0.5; kickCarcass(e, m, from); }
   }
+  // corpse rots away — sink under the field ~4 s in, gone ~5 s in
+  if (e.deathT > 4) {
+    m.position.y = 0.02 - (e.deathT - 4) * 0.4;
+    if (e.deathT > 5.2) { Enemies.scene.remove(m); e.gone = true; }
+  }
 }
 
 /* ---------- pickups ---------- */
