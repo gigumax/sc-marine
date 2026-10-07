@@ -85,13 +85,16 @@ function buildMarauderArms(camera) {
   const armor  = new THREE.MeshStandardMaterial({ color: 0x2e3a48, roughness: 0.55, metalness: 0.45 });
   const armorD = new THREE.MeshStandardMaterial({ color: 0x1a2230, roughness: 0.7,  metalness: 0.35 });
   const boreMat= new THREE.MeshStandardMaterial({ color: 0x0c1016, roughness: 0.4,  metalness: 0.7 });
+  const red    = new THREE.MeshStandardMaterial({ color: 0xb83426, roughness: 0.55, metalness: 0.4 });
   const glowO  = new THREE.MeshBasicMaterial({ color: 0xff8a2a });
   const hole   = new THREE.MeshBasicMaterial({ color: 0x05070a });
 
   const mk = side => {
     const arm = new THREE.Group();
-    // forearm gauntlet — the square launcher pod
+    // forearm gauntlet — the square launcher pod + red wrist cuff
     arm.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.32, 0.62), armor));
+    const cuff = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.36, 0.24), red);
+    cuff.position.set(0, 0, -0.18); arm.add(cuff);
     const plate = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.13, 0.4), armorD);
     plate.position.set(0, 0.12, 0.04); arm.add(plate);
     // launcher bore — barrel collar, dark cavity, glowing rim (missiles exit here)
@@ -109,6 +112,8 @@ function buildMarauderArms(camera) {
     // upper arm trailing back toward the body
     const upper = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.5), armorD);
     upper.position.set(-side * 0.08, -0.1, 0.42); upper.rotation.x = 0.5; arm.add(upper);
+    const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), armor);
+    shoulder.position.set(-side * 0.05, 0.05, 0.62); arm.add(shoulder);   // pauldron edge peeking in
     const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), armor);
     elbow.position.set(-side * 0.1, -0.28, 0.6); arm.add(elbow);
     // fire bits — bore origin, per-arm flash + light

@@ -113,6 +113,22 @@ function starTexture() {
   return _starTex;
 }
 
+/* ---------- chalk "14" pauldron stencil (canvas-drawn, shared) ---------- */
+let _chalkTex = null;
+function chalkDecalTexture() {
+  if (_chalkTex) return _chalkTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.font = '900 82px monospace';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#e8e0c8';
+  g.translate(64, 66); g.rotate(-0.1);
+  g.fillText('14', 0, 0);
+  _chalkTex = new THREE.CanvasTexture(c);
+  return _chalkTex;
+}
+
 /* ---------- armor scratch texture — gouges + chips, shared ---------- */
 let _scratchTex = null;
 function armorScratchTexture() {
@@ -286,6 +302,7 @@ function buildMarauderMesh(accent) {
   const armorD = new THREE.MeshStandardMaterial({ color: 0x1a2230, roughness: 0.75, metalness: 0.35 });
   const joint  = new THREE.MeshStandardMaterial({ color: 0x10151d, roughness: 0.9 });
   const blue   = new THREE.MeshStandardMaterial({ color: 0x2a4a9a, roughness: 0.5, metalness: 0.5 });
+  const red    = new THREE.MeshStandardMaterial({ color: 0xb83426, roughness: 0.55, metalness: 0.4 });
   const glowO  = new THREE.MeshBasicMaterial({ color: 0xff8a2a });
   const gunM   = new THREE.MeshStandardMaterial({ color: 0x141a22, roughness: 0.55, metalness: 0.6 });
   const chalk  = new THREE.MeshBasicMaterial({ color: 0xcfd8e0 });
@@ -301,9 +318,15 @@ function buildMarauderMesh(accent) {
     const boot = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.15, 0.44), blue);
     boot.position.set(s * 0.22, 0.07, 0.06);
     g.add(boot);
+    const toe = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.14), red);
+    toe.position.set(s * 0.22, 0.06, 0.3);
+    g.add(toe);
     const shin = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.3, 0.1), armor);
     shin.position.set(s * 0.22, 0.5, 0.14);
     g.add(shin);
+    const knee = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.24, 0.12), red);
+    knee.position.set(s * 0.22, 0.4, 0.16);
+    g.add(knee);
   }
 
   // torso — slab power armor, orange chest vents, hanging pelvis plate
@@ -325,18 +348,28 @@ function buildMarauderMesh(accent) {
   skirt.position.set(0, 0.8, 0.15);
   g.add(skirt);
 
-  // massive pauldrons — blue caps + chalk kill-marks, the marauder silhouette
+  // massive bulbous pauldrons — THE marauder silhouette: dark dome sitting on a
+  // red-orange lower shell, blue cap plate, chalk "14" stenciled on the right dome
   for (const s of [-1, 1]) {
-    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.34, 0.46), armor);
-    pad.position.set(s * 0.54, 1.64, 0);
-    g.add(pad);
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.38), blue);
-    cap.position.set(s * 0.54, 1.85, 0);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), armor);
+    dome.scale.set(1.12, 0.95, 1.05);
+    dome.position.set(s * 0.52, 1.68, 0);
+    g.add(dome);
+    const band = new THREE.Mesh(                        // red lower half of the shell
+      new THREE.SphereGeometry(0.44, 12, 6, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45), red);
+    band.scale.copy(dome.scale);
+    band.position.copy(dome.position);
+    g.add(band);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 0.4), blue);
+    cap.position.set(s * 0.52, 2.03, 0);
     g.add(cap);
-    const mark = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.22), chalk);
-    mark.position.set(s * 0.73, 1.62, 0.02);
-    mark.rotation.z = s * 0.35;
-    g.add(mark);
+    if (s === 1) {
+      const mark = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.36),
+        new THREE.MeshBasicMaterial({ map: chalkDecalTexture(), transparent: true, depthWrite: false }));
+      mark.position.set(s * 1.06, 1.68, 0.02);
+      mark.rotation.y = Math.PI / 2;
+      g.add(mark);
+    }
   }
 
   // head sunk between shoulders — orange eye slit
@@ -358,23 +391,26 @@ function buildMarauderMesh(accent) {
   // forearm grenade launchers — twin tubes, accent ring at the muzzle
   const arms = [];
   for (const s of [-1, 1]) {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.55, 0.2), joint);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 0.22), joint);
     arm.position.set(s * 0.52, 1.22, 0.08);
     arm.rotation.x = -0.4;
     g.add(arm); arms.push(arm);
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.55, 8), gunM);
+    const cuff = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.28, 0.22), red);
+    cuff.position.set(s * 0.52, 1.12, 0.3);              // red wrist cuff under the tube
+    g.add(cuff);
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.62, 10), gunM);
     tube.rotation.x = Math.PI / 2;
-    tube.position.set(s * 0.52, 1.02, 0.44);
+    tube.position.set(s * 0.52, 1.02, 0.52);
     g.add(tube);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.02, 6, 12),
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.024, 6, 14),
       new THREE.MeshBasicMaterial({ color: accent }));
-    ring.position.set(s * 0.52, 1.02, 0.7);
+    ring.position.set(s * 0.52, 1.02, 0.83);
     g.add(ring);
   }
 
   // gun anchor for muzzle flash + net compat — right tube tip
   const gun = new THREE.Group();
-  gun.position.set(0.52, 1.02, 0.44);
+  gun.position.set(0.52, 1.02, 0.55);
   g.add(gun);
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({
     color: 0xffc060, transparent: true, opacity: 0,
@@ -421,8 +457,8 @@ function buildMarauderMesh(accent) {
     const mat = new THREE.MeshBasicMaterial({
       map: armorScratchTexture(), transparent: true, opacity: 0, depthWrite: false,
     });
-    const d = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3), mat);
-    d.position.set(s * 0.73, 1.64, 0);
+    const d = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), mat);
+    d.position.set(s * 1.02, 1.68, 0);
     d.rotation.y = s * Math.PI / 2;
     d.visible = false;
     g.add(d); scratch.push(d);
