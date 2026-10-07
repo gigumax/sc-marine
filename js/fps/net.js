@@ -220,6 +220,7 @@ const Net = {
           case 'edmg':    if (this.isHost) this.hostEnemyHit(p); break;
           case 'sdmg':    if (this.isHost) this.hostHiveHit(p); break;
           case 'pdmg':    if (p.to === this.id && !Player.dead) damagePlayer(p.dmg, new THREE.Vector3(p.fx, 1, p.fz)); break;
+          case 'pheal':   if (p.to === this.id && !Player.dead) Player.heal(p.amt || 6); break;
           case 'ekill':   this.onEnemyKill(p); break;
           case 'pk':      if (this.isHost) this.hostPickup(p); break;
           case 'spit':    if (!this.isHost) this.fxSpit(p); break;
@@ -304,6 +305,7 @@ const Net = {
     if (p && p.unit !== nu) {
       // promotion mid-match — swap the avatar to the new frame
       const mesh = nu === 'marauder' ? buildMarauderMesh(st.c) : buildMarineMesh(st.c);
+      mesh.userData.peerId = st.id;               // medic beam can heal this marine
       const tag = makeNameTag(st.n, st.c);
       tag.position.y = nu === 'marauder' ? 2.5 : 2.15;
       mesh.add(tag);
@@ -315,6 +317,7 @@ const Net = {
     }
     if (!p) {
       const mesh = st.u === 'marauder' ? buildMarauderMesh(st.c) : buildMarineMesh(st.c);
+      mesh.userData.peerId = st.id;
       const tag = makeNameTag(st.n, st.c);
       tag.position.y = st.u === 'marauder' ? 2.5 : 2.15;
       mesh.add(tag);
@@ -349,7 +352,7 @@ const Net = {
     Audio2.shotAt ? Audio2.shotAt(p.mesh.position.distanceTo(Player.pos)) : Audio2.shot();
     const o = new THREE.Vector3(s.ox, s.oy, s.oz), e = new THREE.Vector3(s.tx, s.ty, s.tz);
     if (s.mis) this.fxMissile(o, e);
-    else tracerFx(o, e);
+    else tracerFx(o, e, s.heal);
   },
 
   // remote marauder rocket — visual only, damage is host-routed
@@ -611,7 +614,7 @@ const Net = {
   tellShot(hit) {
     // cosmetic tracer for everyone else
     this.send('shot', {
-      id: this.id, mis: hit.mis ? 1 : 0,
+      id: this.id, mis: hit.mis ? 1 : 0, heal: hit.heal ? 1 : 0,
       ox: hit.o.x, oy: hit.o.y, oz: hit.o.z, tx: hit.e.x, ty: hit.e.y, tz: hit.e.z,
     });
   },
@@ -648,9 +651,9 @@ function makeNameTag(name, color) {
 }
 
 /* tracer visual for remote shots (does no damage — FX only) */
-function tracerFx(from, to) {
+function tracerFx(from, to, heal) {
   const g = new THREE.BufferGeometry().setFromPoints([from, to]);
-  const m = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x9fd0ff, transparent: true, opacity: 0.7 }));
+  const m = new THREE.Line(g, new THREE.LineBasicMaterial({ color: heal ? 0x5aff8a : 0x9fd0ff, transparent: true, opacity: 0.7 }));
   Enemies.scene.add(m);
   Player.tracers.push({ m, t: 0 });
 }

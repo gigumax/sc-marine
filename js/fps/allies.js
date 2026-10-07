@@ -506,9 +506,11 @@ function spawnAllies() {
       tgt: null, tgtHive: null,
       slot: sl,
       walkT: Math.random() * 7,
-      regenT: 0, hurtT: 0,
+      regenT: 0, hurtT: 0, healT: 0,
       radius: 0.55,
     });
+    const a = Allies.list[Allies.list.length - 1];
+    a.mesh.userData.ally = a;                     // medic beam raycast finds this
   }
   buildSquadHud();
 }
@@ -579,6 +581,7 @@ function swapAllyFrame(a) {
   Enemies.scene.add(nm);
   a.mesh = nm; a.pos = nm.position;
   a.marFrame = a.leader && !Game.leader;
+  nm.userData.ally = a;                           // keep the medic-beam tag
   if (a.hp < a.maxHp) setMarineScratches(nm, a.hp / a.maxHp);
 }
 
@@ -694,6 +697,7 @@ function updateAllies(dt) {
     a.fireT -= dt;
     a.retargetT -= dt;
     if (a.hurtT > 0) a.hurtT -= dt;
+    if (a.healT > 0) a.healT -= dt;
     if (a.regenT > 0) a.regenT -= dt;
     else if (a.hp < a.maxHp) a.hp = Math.min(a.maxHp, a.hp + 4.5 * dt);
     setMarineScratches(m, a.hp / a.maxHp);
@@ -826,7 +830,7 @@ function updateAllies(dt) {
     // hurt flash — red tint on armor
     m.traverse(o => {
       if (o.isMesh && o.material.emissive)
-        o.material.emissive.setHex(a.hurtT > 0 ? 0x601008 : 0x000000);
+        o.material.emissive.setHex(a.hurtT > 0 ? 0x601008 : a.healT > 0 ? 0x14552e : 0x000000);
     });
     const fl = m.userData.flash;
     if (fl.material.opacity > 0) fl.material.opacity -= dt * 16;

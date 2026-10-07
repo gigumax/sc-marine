@@ -56,9 +56,9 @@ const UI = {
     // red ring while hurt — base by hp, hit-flash on top; always cleared at full
     $id('vignette').style.opacity = Math.max(Player.hp < 30 ? 0.45 : 0, this.flashOp);
 
-    $id('ammo-mag').textContent = Player.mag;
-    $id('ammo-res').textContent = Player.reserve;
-    $id('ammo').classList.toggle('low', Player.mag <= 8);
+    $id('ammo-mag').textContent = Player.unit === 'medic' ? '∞' : Player.mag;
+    $id('ammo-res').textContent = Player.unit === 'medic' ? '∞' : Player.reserve;
+    $id('ammo').classList.toggle('low', Player.unit !== 'medic' && Player.mag <= 8);
     $id('wave-num').textContent = 'WAVE ' + Math.max(1, Waves.wave);
     $id('score').textContent = 'KILLS ' + Enemies.kills;
     $id('hive-num').textContent = 'HIVES ' + Waves.hivesLeft() + '/4';

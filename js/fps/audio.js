@@ -69,6 +69,7 @@ const Audio2 = {
   spit(d)   { const v = this.vol(d); this.tone(650, 0.16, 'sawtooth', 0.09 * v, 950);
               this.noise(0.14, 0.08 * v, 700, 1.2); },
   pickup()  { this.tone(880, 0.08, 'sine', 0.10, 1320); },
+  heal()    { this.tone(980, 0.07, 'sine', 0.10, 1560); },
   step()    { this.noise(0.05, 0.05, 500, 1); },
   jump()    { this.noise(0.08, 0.07, 700, 1); },
   over()    { this.tone(160, 1.2, 'sawtooth', 0.16, 40); },

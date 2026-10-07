@@ -9,6 +9,7 @@ const Player = {
   eyeH: 1.62,
   hp: 100, maxHp: 100,
   mag: 32, magSize: 32, reserve: 320,
+  healPwr: 0,                                 // medic beam hp per pulse
   unit: 'marine',                         // 'marine' | 'marauder'
   fireRate: 1 / 9, dmg: 16, hsDmg: 34,
   reloading: false, reloadT: 0,
@@ -260,7 +261,54 @@ function fireWeapon() {
     Player.muzzleLight.intensity = 2.2;
   }
 
-  Player.unit === 'marauder' ? Audio2.shotBig() : Audio2.shot();
+  Player.unit === 'marauder' ? Audio2.shotBig()
+    : Player.unit === 'medic' ? Audio2.heal() : Audio2.shot();
+
+  // medic: green nano beam — knits squadmates back together, hurts nothing
+  if (Player.unit === 'medic') {
+    _dir.set((Math.random() - .5) * 0.006, (Math.random() - .5) * 0.006, -1)
+        .normalize().applyQuaternion(Player.cam.quaternion);
+    _ray.set(Player.cam.getWorldPosition(new THREE.Vector3()), _dir);
+    _ray.far = 30;                                // beam has a working range
+    const meshes = [];
+    for (const a of Allies.list) if (!a.dead) meshes.push(a.mesh);
+    if (Net.on) for (const id in Net.peers) {
+      const q = Net.peers[id];
+      if (!q.dead) meshes.push(q.mesh);
+    }
+    const hits = _ray.intersectObjects(meshes, true);
+    const mz = Player.cam.getWorldPosition(new THREE.Vector3())
+      .add(new THREE.Vector3(0.12, -0.08, 0).applyQuaternion(Player.cam.quaternion));
+    let end = _ray.ray.origin.clone().addScaledVector(_dir, 28);
+    if (hits.length) {
+      const h = hits[0]; end = h.point.clone();
+      let obj = h.object;
+      while (obj) {
+        if (obj.userData.ally) {
+          const a = obj.userData.ally;
+          if (a.hp < a.maxHp) {
+            a.hp = Math.min(a.maxHp, a.hp + Player.healPwr);
+            a.healT = 0.3;                        // green flash on the patient
+            if (Math.random() < 0.06) allySay(a, pick(BARKS.thanks));
+          }
+          healBurst(h.point);
+          break;
+        }
+        if (obj.userData.peerId) {
+          Net.send('pheal', { to: obj.userData.peerId, amt: Player.healPwr });
+          healBurst(h.point);
+          break;
+        }
+        obj = obj.parent;
+      }
+    } else {
+      const t = -_ray.ray.origin.y / _dir.y;      // beam hits the deck
+      if (_dir.y < 0 && t > 0 && t < 28) end = _ray.ray.origin.clone().addScaledVector(_dir, t);
+    }
+    spawnTracer(mz.addScaledVector(_dir, 0.9), end, 0x5aff8a, 0.14);
+    if (Net.on) Net.tellShot({ o: mz, e: end, heal: 1 });
+    return;
+  }
 
   // marauder: alternate launcher tubes — rocket spawns at the bore, that arm kicks back
   if (Player.unit === 'marauder') {
@@ -335,13 +383,29 @@ function fireWeapon() {
   if (Net.on) Net.tellShot({ o: muzzlePos, e: end });
 }
 
-function spawnTracer(from, to) {
+function spawnTracer(from, to, col, ttl) {
   const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
   const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
-    color: 0xffe8a0, transparent: true, opacity: 0.9,
+    color: col || 0xffe8a0, transparent: true, opacity: 0.9,
   }));
   Enemies.scene.add(line);
-  Player.tracers.push({ m: line, t: 0, ttl: 0.07 });
+  Player.tracers.push({ m: line, t: 0, ttl: ttl || 0.07 });
+}
+
+/* little green motes where the nano beam makes contact */
+const _healGeo = new THREE.SphereGeometry(0.035, 4, 3);
+const _healMat = new THREE.MeshBasicMaterial({ color: 0x5aff9a });
+function healBurst(pos) {
+  for (let i = 0; i < 3; i++) {
+    const m = new THREE.Mesh(_healGeo, _healMat);
+    m.position.copy(pos);
+    Enemies.scene.add(m);
+    Enemies.gibs.push({
+      m, ttl: 0.35, t: 0,
+      vx: (Math.random() - .5) * 1.6, vy: 1 + Math.random() * 1.6,
+      vz: (Math.random() - .5) * 1.6, rs: (Math.random() - .5) * 6,
+    });
+  }
 }
 
 const _sparkGeo = new THREE.SphereGeometry(0.03, 4, 3);
@@ -595,6 +659,7 @@ function updatePlayer(dt) {
 const UNITS = {
   marine:   { hp: 100, mag: 32, reserve: 320, rate: 1 / 9, dmg: 16, hs: 34, label: 'C-14 GAUSS',         flash: 0.35 },
   marauder: { hp: 300, mag: 8,  reserve: 96,  rate: 0.53,  dmg: 80, hs: 80, label: 'PUNISHER GRENADES',  flash: 0.6  },
+  medic:    { hp: 100, mag: 40, reserve: 0,   rate: 1 / 6, dmg: 0,  hs: 0,  heal: 8, label: 'NANO BEAM',           flash: 0.35 },
 };
 
 function setUnit(unit) {
@@ -605,6 +670,11 @@ function setUnit(unit) {
   Player.maxHp = u.hp; Player.hp = u.hp;
   Player.magSize = u.mag; Player.mag = u.mag; Player.reserve = u.reserve;
   Player.fireRate = u.rate; Player.dmg = u.dmg; Player.hsDmg = u.hs;
+  Player.healPwr = u.heal || 0;
+  if (Player.muzzle) {                          // beam color follows the kit
+    Player.muzzle.material.color.setHex(Player.unit === 'medic' ? 0x66ffa0 : 0xffd080);
+    Player.muzzleLight.color.setHex(Player.unit === 'medic' ? 0x4aff80 : 0xffb060);
+  }
   const lb = document.getElementById('ammo-label');
   if (lb) lb.innerHTML = u.label + ' — <span id="reload-hint"></span>';
   if (Player.muzzle) Player.muzzle.scale.setScalar(u.flash);
