@@ -622,6 +622,108 @@ function updateGibs(dt) {
   Enemies.gibs = Enemies.gibs.filter(g => !g.done);
 }
 
+/* ---------- carcasses — zerglings flop, gray out, and can be kicked ---------- */
+const _carcassMat  = new THREE.MeshStandardMaterial({ color: 0x6a6f76, roughness: 0.95, metalness: 0.05 });
+const _carcassWing = new THREE.MeshBasicMaterial({ color: 0x565b62, transparent: true, opacity: 0.28, side: THREE.DoubleSide });
+const _goreGeo = new THREE.CircleGeometry(0.15, 8);
+const _goreMat = new THREE.MeshBasicMaterial({ color: 0x8a1008, transparent: true, opacity: 0.8 });
+const _chunkGeo = new THREE.BoxGeometry(0.12, 0.1, 0.22);
+const _chunkMat = new THREE.MeshStandardMaterial({ color: 0x5a6068, roughness: 0.9 });
+const _chunkRed = new THREE.MeshStandardMaterial({ color: 0x6a1408, roughness: 0.9 });
+const CORPSE_CAP = 40;
+
+function setCarcassGray(m) {
+  if (m.userData._grayed) return;
+  m.userData._grayed = true;
+  m.traverse(o => {
+    if (o.isMesh) o.material = (o.material && o.material.transparent) ? _carcassWing : _carcassMat;
+  });
+}
+
+function bloodSmear(pos) {
+  const m = new THREE.Mesh(_goreGeo, _goreMat);
+  m.rotation.x = -Math.PI / 2;
+  m.rotation.z = Math.random() * 7;
+  m.scale.setScalar(0.7 + Math.random() * 0.9);
+  m.position.set(pos.x + (Math.random() - .5) * 0.35, 0.02, pos.z + (Math.random() - .5) * 0.35);
+  Enemies.scene.add(m);
+  Enemies.gibs.push({ m, ttl: 60, t: 0, vx: 0, vy: 0, vz: 0, rs: 0 });   // rides the gib pool, but still
+}
+
+function carcassChunk(m) {
+  const c = new THREE.Mesh(_chunkGeo, Math.random() < 0.5 ? _chunkMat : _chunkRed);
+  c.position.copy(m.position); c.position.y = 0.25;
+  Enemies.scene.add(c);
+  Enemies.gibs.push({
+    m: c, ttl: 25, t: 0,
+    vx: (Math.random() - .5) * 3, vy: 1.5 + Math.random() * 2, vz: (Math.random() - .5) * 3,
+    rs: (Math.random() - .5) * 16,
+  });
+}
+
+// who's close enough to boot this body — player, AI marines, remote peers
+function carcassKicker(mp) {
+  if (!Player.dead && Math.hypot(mp.x - Player.pos.x, mp.z - Player.pos.z) < 1.05) return Player.pos;
+  for (const a of Allies.list)
+    if (!a.dead && Math.hypot(mp.x - a.pos.x, mp.z - a.pos.z) < 1.05) return a.pos;
+  if (Net.on)
+    for (const id in Net.peers) {
+      const q = Net.peers[id];
+      if (!q.dead && Math.hypot(mp.x - q.mesh.position.x, mp.z - q.mesh.position.z) < 1.05)
+        return q.mesh.position;
+    }
+  return null;
+}
+
+function kickCarcass(e, m, fromPos) {
+  const dx = m.position.x - fromPos.x, dz = m.position.z - fromPos.z;
+  const d = Math.hypot(dx, dz) || 0.1;
+  e.kickV = e.kickV || new THREE.Vector3();
+  e.kickV.set(dx / d * 3.4 + (Math.random() - .5), 0, dz / d * 3.4 + (Math.random() - .5));
+  e.bloodT = 0; e.chunkT = 0;
+  e.chunks = 2 + (Math.random() * 2 | 0);        // limbs shear off as it slides
+  bloodBurst(m.position.clone().setY(0.15), 4);
+  Audio2.hit();
+}
+
+function updateCarcass(e, m, dt) {
+  e.deathT += dt;
+  // tip onto the side instead of face-planting, then settle + desaturate
+  const flop = Math.min(Math.PI / 2, e.deathT * 5.5);
+  m.rotation.x = flop * 0.15;
+  m.rotation.z = flop;
+  if (flop >= Math.PI / 2 && !e._grayed) {
+    e._grayed = true;
+    m.position.y = 0.02;
+    setCarcassGray(m);
+    // field can't become a carpet — cull the oldest bodies past the cap
+    const corpses = Enemies.list.filter(x => x.dead && !x.roach);
+    if (corpses.length > CORPSE_CAP) {
+      Enemies.scene.remove(corpses[0].mesh);
+      corpses[0].gone = true;
+    }
+  }
+  // skidding after a kick — smears blood, sheds parts, spins a little
+  if (e.kickV) {
+    const sp = Math.hypot(e.kickV.x, e.kickV.z);
+    if (sp > 0.05) {
+      m.position.x += e.kickV.x * dt;
+      m.position.z += e.kickV.z * dt;
+      m.rotation.y += dt * sp * 2;
+      e.kickV.multiplyScalar(Math.max(0, 1 - dt * 4));
+      e.bloodT -= dt;
+      if (e.bloodT <= 0) { e.bloodT = 0.06; bloodSmear(m.position); }
+      e.chunkT -= dt;
+      if (e.chunkT <= 0 && e.chunks > 0) { e.chunkT = 0.16; e.chunks--; carcassChunk(m); }
+    } else e.kickV.set(0, 0, 0);
+  }
+  e.kickCd = (e.kickCd || 0) - dt;
+  if (e.kickCd <= 0) {
+    const from = carcassKicker(m.position);
+    if (from) { e.kickCd = 0.5; kickCarcass(e, m, from); }
+  }
+}
+
 /* ---------- pickups ---------- */
 const _ammoGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
 const _ammoMat = new THREE.MeshStandardMaterial({ color: 0x2266aa, emissive: 0x2a8ae0, emissiveIntensity: 0.9 });
@@ -688,10 +790,14 @@ function updateEnemies(dt, onPlayerHit) {
     const m = e.mesh;
 
     if (e.dead) {
-      e.deathT += dt;
-      m.rotation.x = Math.min(Math.PI / 2, e.deathT * 6);   // keel over
-      m.position.y = -e.deathT * 0.5;
-      if (e.deathT > 1.1) { Enemies.scene.remove(m); e.gone = true; }
+      if (e.roach) {                                    // big bug — old keel-over + sink
+        e.deathT += dt;
+        m.rotation.x = Math.min(Math.PI / 2, e.deathT * 6);
+        m.position.y = -e.deathT * 0.5;
+        if (e.deathT > 1.1) { Enemies.scene.remove(m); e.gone = true; }
+      } else {
+        updateCarcass(e, m, dt);                        // lings/hunters — side flop, gray, kickable
+      }
       continue;
     }
 

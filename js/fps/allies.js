@@ -462,6 +462,7 @@ function spawnAllies() {
       name: Allies.names[i],
       accent: '#' + Allies.accents[i].toString(16).padStart(6, '0'),
       leader: i === leadIdx,
+      marFrame: i === leadIdx,               // wearing the marauder chassis?
       hp: i === leadIdx ? 150 : 90, maxHp: i === leadIdx ? 150 : 90,
       yaw: Player.yaw,
       dead: false, gone: false, deathT: 0,
@@ -541,6 +542,7 @@ function swapAllyFrame(a) {
   Enemies.scene.remove(a.mesh);
   Enemies.scene.add(nm);
   a.mesh = nm; a.pos = nm.position;
+  a.marFrame = a.leader && !Game.leader;
   if (a.hp < a.maxHp) setMarineScratches(nm, a.hp / a.maxHp);
 }
 
@@ -641,6 +643,8 @@ function updateAllies(dt) {
     allySay(lead || Allies.list.find(a => !a.dead), pick(BARKS.coverYou), true);
   }
   for (const a of Allies.list) {
+    // whoever holds command wears the marauder chassis — heal any missed swap
+    if (!a.dead && (a.leader && !Game.leader) !== !!a.marFrame) swapAllyFrame(a);
     const m = a.mesh;
 
     if (a.dead) {

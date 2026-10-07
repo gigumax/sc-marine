@@ -425,8 +425,7 @@ const Net = {
       seen[id] = true;
       let e = this.eById[id];
       if (!e) e = this.spawnReplica(id, ty);
-      if (e.dead) continue;
-      e.netTo.set(x, y, z);
+      e.netTo.set(x, y, z);                 // dead too — host kicks broadcast the skid
       e.netRy = ry;
     }
     for (const id in this.eById) {
@@ -561,10 +560,15 @@ const Net = {
     for (const id in this.eById) {
       const e = this.eById[id], m = e.mesh;
       if (e.dead) {
-        e.deathT += dt;
-        m.rotation.x = Math.min(Math.PI / 2, e.deathT * 6);
-        m.position.y = -e.deathT * 0.5;
-        if (e.deathT > 1.1) { Enemies.scene.remove(m); e.gone = true; delete this.eById[id]; }
+        if (e.roach) {                            // big bugs still sink away
+          e.deathT += dt;
+          m.rotation.x = Math.min(Math.PI / 2, e.deathT * 6);
+          m.position.y = -e.deathT * 0.5;
+          if (e.deathT > 1.1) { Enemies.scene.remove(m); e.gone = true; delete this.eById[id]; }
+        } else {
+          updateCarcass(e, m, dt);                // same flop/gray/kick as host-side
+          if (e.netTo) m.position.lerp(e.netTo, Math.min(1, dt * 8));
+        }
         continue;
       }
       const d0 = m.position.distanceTo(e.netTo);
