@@ -661,6 +661,7 @@ function allyShoot(a) {
   const fl = a.mesh.userData.flash;
   fl.material.opacity = 1; fl.material.rotation = Math.random() * 7;
   Audio2.shotAt(dist > 0 ? a.pos.distanceTo(Player.pos) : 1);
+  noiseAt(a.pos.x, a.pos.z, 30);                     // squad fire gives away its position
 
   // accuracy falls off with range; jitter while moving
   const acc = Math.max(0.12, 0.62 - dist * 0.015 - (a.moving ? 0.18 : 0));

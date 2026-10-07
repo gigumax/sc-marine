@@ -269,6 +269,8 @@ function fireWeapon() {
 
   Player.unit === 'marauder' ? Audio2.shotBig()
     : Player.unit === 'medic' ? Audio2.heal() : Audio2.shot();
+  // the swarm hears the discharge — they stalk the firing point
+  noiseAt(Player.pos.x, Player.pos.z, Player.unit === 'medic' ? 12 : 30);
 
   // medic: green nano beam — knits squadmates back together, hurts nothing
   if (Player.unit === 'medic') {

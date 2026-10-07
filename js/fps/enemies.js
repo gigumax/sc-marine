@@ -11,6 +11,41 @@ const Enemies = {
   spits: [],                     // roach acid projectiles
 };
 
+/* ---------- zerg senses ---------- */
+const Z_SIGHT = 34, Z_SMELL = 6;             // how far they see / always sense
+
+/* eye-line vs world cover — a blocker hides you only if it's taller than the
+   sightline where they cross, so you can shoot over chest-high blinds */
+function zLos(ex, ez, eh, tx, tz, th) {
+  const dx = tx - ex, dz = tz - ez;
+  const len2 = dx * dx + dz * dz || 1e-6;
+  for (const b of World.sight) {
+    let t = ((b.x - ex) * dx + (b.z - ez) * dz) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const px = ex + dx * t - b.x, pz = ez + dz * t - b.z;
+    if (px * px + pz * pz < b.r * b.r && eh + (th - eh) * t < b.h) return false;
+  }
+  return true;
+}
+
+/* can this zerg spot something at (tx,ty,tz)? */
+function zCanSee(e, tx, ty, tz) {
+  const m = e.mesh.position;
+  const d = Math.hypot(tx - m.x, tz - m.z);
+  return d < Z_SMELL || (d < Z_SIGHT && zLos(m.x, m.z, e.roach ? 1.2 : 0.85, tx, tz, ty));
+}
+
+/* gunfire gives you away — nearby zerg stalk the shot origin for a few sec */
+function noiseAt(x, z, r) {
+  for (const e of Enemies.list) {
+    if (e.dead) continue;
+    if (Math.hypot(e.mesh.position.x - x, e.mesh.position.z - z) < r) {
+      (e.alertPos = e.alertPos || new THREE.Vector3()).set(x, 0, z);
+      e.alertT = 5;
+    }
+  }
+}
+
 /* ---------- zergling model (primitives) ---------- */
 // veined membrane wing drawn once on a canvas — translucent insect look
 let _wingTex = null;
@@ -403,6 +438,9 @@ function spawnEnemy(type, pos) {
     weave: Math.random() * 10,
     animT: Math.random() * 7,
     screechT: 2 + Math.random() * 6,
+    home: pos.clone(),             // where the hive dumped it — drift back here
+    alertPos: null, alertT: 0,     // last heard gunshot
+    wanderT: Math.random() * 2, wanderPos: null,
   };
   mesh.userData.enemy = e;
   Enemies.scene.add(mesh);
@@ -421,6 +459,7 @@ function damageSpawner(s, dmg, from) {
   if (s.dead) return false;
   const f = from || Player.pos;
   if (Math.hypot(s.pos.x - f.x, s.pos.z - f.z) > HIVE_RANGE) return false;
+  noiseAt(s.pos.x, s.pos.z, 24);                       // defenders hear their hive hit
   s.hp -= dmg;
   s.flash = 1;
   Audio2.hit();
@@ -552,6 +591,7 @@ function updateSpits(dt, onPlayerHit) {
 
 function damageEnemy(e, dmg, headshot, byPlayer, creditId) {
   if (e.dead) return;
+  noiseAt(e.mesh.position.x, e.mesh.position.z, 26);   // the pack hears a kill
   e.hp -= dmg;
   bloodBurst(e.mesh.position.clone().add(new THREE.Vector3(0, 0.6, 0)), headshot ? 10 : 6);
   if (e.hp <= 0) {
@@ -815,22 +855,50 @@ function updateEnemies(dt, onPlayerHit) {
     e.screechT -= dt;
     e.weave += dt * 6;
 
-    // pick nearest victim — the player, a living marine, or a remote player
-    let tp = p, tAlly = null;
-    let dist = Math.hypot(p.x - m.position.x, p.z - m.position.z);
+    // pick nearest victim it can actually see — cover breaks sight
+    let tp = null, tAlly = null, dist = Infinity;
+    const see = (x, y, z) => zCanSee(e, x, y, z);
+    if (!Player.dead && see(p.x, 1.3, p.z)) {
+      dist = Math.hypot(p.x - m.position.x, p.z - m.position.z);
+      tp = p;
+    }
     for (const a of Allies.list) {
       if (a.dead) continue;
       const d = Math.hypot(a.pos.x - m.position.x, a.pos.z - m.position.z);
-      if (d < dist) { dist = d; tp = a.pos; tAlly = a; }
+      if (d < dist && see(a.pos.x, 1.3, a.pos.z)) { dist = d; tp = a.pos; tAlly = a; }
     }
     if (Net.on)
       for (const id in Net.peers) {
         const q = Net.peers[id];
         if (q.dead) continue;
-        const d = Math.hypot(q.mesh.position.x - m.position.x, q.mesh.position.z - m.position.z);
-        if (d < dist) { dist = d; tp = q.mesh.position; tAlly = null; }
+        const mp = q.mesh.position;
+        const d = Math.hypot(mp.x - m.position.x, mp.z - m.position.z);
+        if (d < dist && see(mp.x, 1.3, mp.z)) { dist = d; tp = mp; tAlly = null; }
       }
     e.tgtAlly = tAlly;
+
+    // nothing in sight — stalk the last gunshot, else drift around the hive
+    const engaged = !!tp;
+    if (!engaged) {
+      if (e.alertPos) {
+        e.alertT -= dt;
+        if (e.alertT <= 0 ||
+            Math.hypot(e.alertPos.x - m.position.x, e.alertPos.z - m.position.z) < 2)
+          e.alertPos = null;
+      }
+      if (e.alertPos) tp = e.alertPos;
+      else {
+        e.wanderT -= dt;
+        if (e.wanderT <= 0 || !e.wanderPos) {
+          e.wanderT = 2.5 + Math.random() * 3;
+          (e.wanderPos = e.wanderPos || new THREE.Vector3())
+            .set(e.home.x + (Math.random() - .5) * 9, 0,
+                 e.home.z + (Math.random() - .5) * 9);
+        }
+        tp = e.wanderPos;
+      }
+      dist = Math.hypot(tp.x - m.position.x, tp.z - m.position.z);
+    }
 
     const dx = tp.x - m.position.x, dz = tp.z - m.position.z;
 
@@ -852,7 +920,7 @@ function updateEnemies(dt, onPlayerHit) {
       continue;
     }
 
-    if (dist < 2.3 && e.attackCd <= 0) {
+    if (engaged && dist < 2.3 && e.attackCd <= 0) {
       // start lunge
       e.lungeT = 0.001;
       e.lungeFrom = m.position.clone();
@@ -861,15 +929,16 @@ function updateEnemies(dt, onPlayerHit) {
       continue;
     }
 
-    if (e.screechT <= 0 && dist < 30) {
+    if (e.screechT <= 0 && engaged && dist < 30) {
       e.screechT = 3 + Math.random() * 7;
       Audio2.screech(dist);
     }
 
     const sd = Math.max(dist, 0.001);
     let mx = dx / sd, mz = dz / sd;
-    let sp = e.speed;
-    if (e.roach) {
+    // combat move at full clip; stalk heard shots; idle drift is slow
+    let sp = e.speed * (engaged ? 1 : (tp === e.alertPos ? 0.8 : 0.38));
+    if (engaged && e.roach) {
       // roach: hold at range, spit acid, back off if player closes in, bite if cornered
       e.spitCd -= dt;
       if (dist < 2.8 && e.attackCd <= 0) {
@@ -888,7 +957,7 @@ function updateEnemies(dt, onPlayerHit) {
         const px = -mz * wob, pz = mx * wob;
         mx += px; mz += pz;
       }
-    } else {
+    } else if (engaged) {
       // zergling/hunter: sinus weave chase
       const wob = Math.sin(e.weave) * Math.min(1, dist / 12) * 0.7;
       const px = -mz * wob, pz = mx * wob;

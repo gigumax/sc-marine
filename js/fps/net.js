@@ -357,6 +357,7 @@ const Net = {
     const fl = p.mesh.userData.flash;
     if (fl) { fl.material.opacity = 1; fl.material.rotation = Math.random() * 7; }
     Audio2.shotAt ? Audio2.shotAt(p.mesh.position.distanceTo(Player.pos)) : Audio2.shot();
+    noiseAt(p.mesh.position.x, p.mesh.position.z, 30);   // squadmate fire draws the swarm
     const o = new THREE.Vector3(s.ox, s.oy, s.oz), e = new THREE.Vector3(s.tx, s.ty, s.tz);
     if (s.mis) this.fxMissile(o, e);
     else tracerFx(o, e, s.heal);
@@ -428,10 +429,12 @@ const Net = {
       if (hp <= 0 && !s.dead) { s.hp = 0; hiveDownFX(s); }
       else if (!s.dead && hp < s.hp) { s.hp = hp; s.flash = 1; }
     });
-    // enemies: update replicas
+    // enemies: update replicas — flat stride-6 rows (Firestore bans
+    // nested arrays, so [id,ty,x,y,z,ry] fields are packed side by side)
     const seen = {};
-    for (const r of snap.e) {
-      const [id, ty, x, y, z, ry] = r;
+    for (let i = 0; i + 5 < snap.e.length; i += 6) {
+      const id = snap.e[i], ty = snap.e[i + 1], x = snap.e[i + 2],
+        y = snap.e[i + 3], z = snap.e[i + 4], ry = snap.e[i + 5];
       seen[id] = true;
       let e = this.eById[id];
       if (!e) e = this.spawnReplica(id, ty);
@@ -442,10 +445,10 @@ const Net = {
       const e = this.eById[id];
       if (!seen[id] && !e.dead) { e.dead = true; e.deathT = 0; }
     }
-    // pickups
+    // pickups — flat stride-4 rows
     const pkSeen = {};
-    for (const r of snap.p) {
-      const [id, ty, x, z] = r;
+    for (let i = 0; i + 3 < snap.p.length; i += 4) {
+      const id = snap.p[i], ty = snap.p[i + 1], x = snap.p[i + 2], z = snap.p[i + 3];
       pkSeen[id] = true;
       if (!this.pkById[id]) this.spawnPickupReplica(id, ty, x, z);
     }
@@ -556,15 +559,20 @@ const Net = {
     // snap @ 5 Hz — clients lerp over the 200 ms gap
     if (this.snapT > 0) return;
     this.snapT = 0.2;
+    // flat stride-packed rows — Firestore rejects arrays-of-arrays
     const e = [];
     for (const en of Enemies.list) {
       if (en.gone) continue;
-      e.push([en.netId, en.roach ? 2 : en.hunter ? 1 : 0,
+      e.push(en.netId, en.roach ? 2 : en.hunter ? 1 : 0,
         +en.mesh.position.x.toFixed(2), +en.mesh.position.y.toFixed(2),
-        +en.mesh.position.z.toFixed(2), +en.mesh.rotation.y.toFixed(2)]);
+        +en.mesh.position.z.toFixed(2), +en.mesh.rotation.y.toFixed(2));
     }
-    const pk = Enemies.pickups.filter(p => !p.done && p.pkId)
-      .map(p => [p.pkId, p.type === 'ammo' ? 0 : 1, +p.m.position.x.toFixed(1), +p.m.position.z.toFixed(1)]);
+    const pk = [];
+    for (const p of Enemies.pickups) {
+      if (p.done || !p.pkId) continue;
+      pk.push(p.pkId, p.type === 'ammo' ? 0 : 1,
+        +p.m.position.x.toFixed(1), +p.m.position.z.toFixed(1));
+    }
     if (this.snapRef) this.snapRef.set({ w: Waves.wave, k: Enemies.kills, h: World.spawners.map(s => Math.max(0, Math.ceil(s.hp))), e, p: pk })
       .catch(() => {});
   },
