@@ -480,6 +480,12 @@ const Net = {
   update(dt) {
     // countdown runs pre-match — before Net.on flips
     if (this.countT > 0 && !this.started) {
+      // someone left mid-countdown — drop below minimum → hold the drop
+      if (Object.keys(this.members).length < NET_MIN) {
+        this.countT = -1;
+        this.lobby(`WAITING — ${Object.keys(this.members).length}/${NET_MIN} MARINES`);
+        return;
+      }
       this.countT -= dt;
       const c = Math.ceil(this.countT);
       if (c > 0) this.lobby(`DROP IN ${c}…`);
