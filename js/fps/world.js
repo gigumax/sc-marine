@@ -4,7 +4,8 @@
 
 const ARENA_R = 62;              // playable radius (m)
 const World = {
-  colliders: [],                 // {x,z,r}
+  colliders: [],                 // {x,z,r} — movement blockers
+  sight: [],                     // {x,z,r,h} — line-of-sight blockers, h = top edge
   spawners: [],                  // destructible spawn-hives {mesh,pos,hp,dead,...}
   bounds: ARENA_R,
 };
@@ -126,6 +127,7 @@ function buildWorld(scene) {
     box.rotation.y = Math.random() * 1.5;
     scene.add(box);
     World.colliders.push({ x, z, r: s * 1.45 });
+    World.sight.push({ x, z, r: s * 1.45, h: s * 1.6 });   // cover: blocks the swarm's view
   }
 
   // mineral crystal clusters (StarCraft flavor, glowing)
@@ -145,13 +147,30 @@ function buildWorld(scene) {
     cluster.position.set(cx, 0, cz);
     scene.add(cluster);
     World.colliders.push({ x: cx, z: cz, r: 2.2 });
+    World.sight.push({ x: cx, z: cz, r: 1.5, h: 2.4 });    // crystal clusters hide you too
     const gl = new THREE.PointLight(0x3fa8e0, 0.5, 14);
     gl.position.set(cx, 1.5, cz);
     scene.add(gl);
   }
 
-  // spawn-hives — destructible organic mounds at 4 corners (the objective)
-  for (const [gx, gz] of [[-44, -44], [44, -44], [44, 44], [-44, 44]]) {
+  // blinds — chest-high slabs with firing gaps; duck behind and lings can't see
+  // you, but your rifle still reaches over the top or through the gaps
+  const blindMat = new THREE.MeshStandardMaterial({ color: 0x37465c, roughness: .75, metalness: .3 });
+  for (const [bx, bz, sw, n] of [[-12, -14, 2.2, 2], [12, -14, 2.2, 2],
+                                [0, -25, 2.2, 3], [-20, -35, 2.2, 2], [20, -35, 2.2, 2]]) {
+    const gap = 1.0, total = n * sw + (n - 1) * gap;
+    for (let i = 0; i < n; i++) {
+      const sx = bx - total / 2 + sw / 2 + i * (sw + gap);
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(sw, 1.15, 0.55), blindMat);
+      wall.position.set(sx, 0.575, bz);
+      scene.add(wall);
+      World.colliders.push({ x: sx, z: bz, r: sw * 0.55 });
+      World.sight.push({ x: sx, z: bz, r: sw * 0.55, h: 1.15 });
+    }
+  }
+
+  // spawn-hives — the nest is dug in along the north edge, guarded together
+  for (const [gx, gz] of [[-19, -46], [19, -46], [-9, -31], [9, -31]]) {
     const gate = new THREE.Group();
     // per-hive materials so damage/death affects only that hive
     const ringMat = new THREE.MeshStandardMaterial({
@@ -206,6 +225,7 @@ function buildWorld(scene) {
     gate.userData.spawner = spawner;
     World.spawners.push(spawner);
     World.colliders.push({ x: gx, z: gz, r: 2.4 });
+    World.sight.push({ x: gx, z: gz, r: 2.4, h: 1.4 });    // duck behind the mound
   }
 
   return World;
