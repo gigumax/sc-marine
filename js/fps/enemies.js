@@ -404,6 +404,23 @@ function spawnEnemy(type, pos) {
   return e;
 }
 
+/* building a mesh costs ~30 object allocations — bursting 20+ in one frame
+   hitches the main thread for seconds. Queue and drip out a few per frame. */
+const spawnQueue = [];
+function queueSpawn(type, pos) {
+  spawnQueue.push({
+    type,
+    x: pos.x + (Math.random() - .5) * 2.4,
+    z: pos.z + (Math.random() - .5) * 2.4,
+  });
+}
+function drainSpawns() {
+  for (let i = 0; i < 3 && spawnQueue.length; i++) {
+    const q = spawnQueue.shift();
+    spawnEnemy(q.type, _v2.set(q.x, 0, q.z));
+  }
+}
+
 /* egg splits open — little slime burst */
 const _slimeMat = new THREE.MeshBasicMaterial({ color: 0x4aff6a });
 function eggPop(p, big) {
@@ -462,14 +479,10 @@ function damageSpawner(s, dmg, from) {
     }
     const left = World.spawners.filter(x => !x.dead).length;
     UI.waveBanner(left ? `SPAWN-HIVE DESTROYED — ${left} LEFT` : 'ALL HIVES DOWN — CLEAR THE SWARM');
-    for (const s of World.spawners) {
-      if (!s.dead) {
-        for (let i = 0; i < 8; i++) {
-          spawnEnemy(i < 2 ? 'hunter' : 'zergling',
-            s.pos.clone().add(new THREE.Vector3(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).multiplyScalar(1.5)));
-        }
-      }
-    }
+    for (const s of World.spawners)
+      if (!s.dead)
+        for (let i = 0; i < 8; i++)
+          queueSpawn(i < 2 ? 'hunter' : 'zergling', s.pos);
     if (Net.on) {
       Net.send('hiveDown', { id: s.netId });
     }
@@ -477,6 +490,7 @@ function damageSpawner(s, dmg, from) {
   return true;
 }
 
+/* queued lings crawl out a few per frame — visuals identical, zero hitch */
 function updateSpawners(dt) {
   for (const s of World.spawners) {
     if (s.dead) continue;
@@ -504,13 +518,10 @@ function updateSpawners(dt) {
     if (Net.on && !Net.isHost) continue;            // host owns hatching
     if (burst) {
       for (const eg of le) eggPop(eg.m.position);
-      const nLive = Enemies.list.reduce((n, x) => n + (!x.gone && !x.dead && !x.sd ? 1 : 0), 0);
-      for (let i = 0; i < 20 && nLive + i < 72; i++) {
-        const pos = le[i % le.length].m.position.clone();
-        pos.x += (Math.random() - .5) * 2.4;
-        pos.z += (Math.random() - .5) * 2.4;
-        spawnEnemy('zergling', pos);
-      }
+      const nLive = Enemies.list.reduce((n, x) => n + (!x.gone && !x.dead && !x.sd ? 1 : 0), 0)
+                  + spawnQueue.length;
+      for (let i = 0; i < 20 && nLive + i < 72; i++)
+        queueSpawn('zergling', le[i % le.length].m.position);
     }
     // the brood egg keeps its own slow cycle — one ultralisk at a time
     if (uHatch) {
@@ -521,6 +532,7 @@ function updateSpawners(dt) {
       }
     }
   }
+  drainSpawns();                                   // pop a few queued lings each frame
 }
 
 // hive-collapse visuals shared by host damage + client snapshots
@@ -982,13 +994,12 @@ const Waves = {
       UI.waveBanner(`WAVE ${this.wave} — THE SWARM SURGES`);
       Audio2.wave();
       let surge = Math.min(9, 3 + this.wave);        // lings per hive per wave
+      const nLive = Enemies.list.filter(e => !e.gone && !e.dead && !e.sd).length
+                  + spawnQueue.length;
+      let q = 0;
       for (const s of hives)
-        for (let i = 0; i < surge && Enemies.list.length < 72; i++) {
-          const pos = s.pos.clone();
-          pos.x += (Math.random() - .5) * 5;
-          pos.z += (Math.random() - .5) * 5;
-          spawnEnemy(this.pickType(), pos);
-        }
+        for (let i = 0; i < surge && nLive + q < 72; i++, q++)
+          queueSpawn(this.pickType(), s.pos);
     }
 
     // ambient pressure comes from the eggs — no free spawns between surges

@@ -295,6 +295,34 @@ const Intro = {
         spawnEnemy('zergling', p);
       }
     }
+    // THE SWARM — ~200 lings pouring out of the dark. Facade Groups ride
+    // Enemies.list so all the story AI below drives them; two InstancedMesh
+    // draws render the whole tide for ~2 draw calls instead of thousands.
+    this.horde = [];
+    const HORDE_N = 200;
+    const hordeBody = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(.5, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .8 }), HORDE_N);
+    const hornGeo = new THREE.ConeGeometry(.11, .62, 5);
+    hornGeo.rotateX(-Math.PI / 2 + .45);                       // crest swept back
+    hornGeo.translate(0, .8, .42);
+    const hordeHorn = new THREE.InstancedMesh(hornGeo,
+      new THREE.MeshStandardMaterial({ color: 0x33122a, roughness: 1 }), HORDE_N);
+    hordeBody.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    hordeHorn.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    for (let i = 0; i < HORDE_N; i++) {
+      const m = new THREE.Group();
+      m.position.set((Math.random() - .5) * 140, 0, -42 - Math.random() * 130);
+      const s = .8 + Math.random() * .4;
+      m.scale.set(s * .9, s * .75, s * 1.35);                  // sphere → ling silhouette
+      hordeBody.setColorAt(i, new THREE.Color()
+        .setHSL(.82 + Math.random() * .06, .4, .18 + Math.random() * .12));
+      this.horde.push({ mesh: m, im: i });
+      Enemies.list.push(this.horde[i]);
+    }
+    hordeBody.instanceColor.needsUpdate = true;
+    Enemies.scene.add(hordeBody, hordeHorn);
+    this.hordeIm = [hordeBody, hordeHorn];
     // the city — three times the sprawl: dense tower grid + distant silhouette ring
     this.storyCity = [];
     const towerAt = (bx, bz, far) => {
@@ -383,6 +411,7 @@ const Intro = {
       Enemies.scene.add(this.cityGlow);
     }
     this.smokeT = 0; this._boomed = false; this.killT = 0; this.ultraGo = false;
+    this.sAmb = .6; this.sGun = 5; this.sScr = 1.5;            // soundscape timers
     const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
     try { Audio2.ensure && Audio2.ensure(); } catch (e) {}
     this._skip = () => { if (this.armed) this.stop(); };
@@ -435,6 +464,7 @@ const Intro = {
         e.storyBld = Math.floor(Math.random() * (this.storyCity.length || 1));
         e.storyJx  = Math.random() - .5;
         e.storyRet = 0;
+        e.storyGo  = 9 + Math.random() * 4.5;            // staggered bloodlust — wall buckles man by man
       }
       const mp = e.mesh.position;
       if (e.sd) {                                        // shot dead — keel over, stay down
@@ -457,7 +487,10 @@ const Intro = {
         e.storyTgt.x = e.storyMar.position.x; e.storyTgt.z = e.storyMar.position.z;
         if (Math.hypot(mp.x - e.storyTgt.x, mp.z - e.storyTgt.z) < 1.5) {
           e.storyMar.userData.fell = true;               // dragged down
-          try { bloodBurst(mp.clone().setY(.6), 6); } catch (e) {}
+          try {
+            bloodBurst(mp.clone().setY(.6), 6);
+            Audio2.hitAt(9); Audio2.screech(12);         // scream cut short
+          } catch (e) {}
           e.storyMar = null;
         }
       } else if (t > 10.5) {                             // wall's gone — swarm the blocks
@@ -479,6 +512,17 @@ const Intro = {
       const legs = e.mesh.userData.legs || [];
       for (let li = 0; li < legs.length; li++)
         legs[li].rotation.x = Math.sin(t * 16 + e.storyPh + li) * .5;
+    }
+
+    // horde facades → instance buffers (position/rot/scale all ride along)
+    if (this.hordeIm) {
+      for (const h of this.horde) {
+        h.mesh.updateMatrix();
+        this.hordeIm[0].setMatrixAt(h.im, h.mesh.matrix);
+        this.hordeIm[1].setMatrixAt(h.im, h.mesh.matrix);
+      }
+      this.hordeIm[0].instanceMatrix.needsUpdate = true;
+      this.hordeIm[1].instanceMatrix.needsUpdate = true;
     }
 
     // civilians scatter through the plaza — lings pull some of them down
@@ -596,7 +640,10 @@ const Intro = {
           mr.userData.fell = true;
           const k = 9 / (Math.hypot(ddx, ddz) || 1);
           mr.userData.kx = ddx * k; mr.userData.kz = ddz * k;
-          try { bloodBurst(mr.position.clone().setY(.7), 6); } catch (e) {}
+          try {
+            bloodBurst(mr.position.clone().setY(.7), 6);
+            Audio2.hitAt(7);                             // flattened under a hoof
+          } catch (e) {}
         }
       }
       for (const c of this.storyCivs) {
@@ -670,9 +717,9 @@ const Intro = {
     if (t > 6.0 && t < 20.5) {
       this.killT -= dt;
       if (this.killT <= 0) {
-        this.killT = 0.09 + Math.random() * .07;
+        this.killT = 0.07 + Math.random() * .05;
         const shooters = this.storyMarines.filter(m => !m.userData.fell && m.userData.tgt);
-        for (let k = 0; k < Math.min(2, shooters.length); k++) {
+        for (let k = 0; k < Math.min(4, shooters.length); k++) {
           const v = shooters.splice(Math.floor(Math.random() * shooters.length), 1)[0].userData.tgt;
           if (v.sd) continue;
           v.sd = true;
@@ -778,6 +825,14 @@ const Intro = {
     for (const m of this.storyMarines) Enemies.scene.remove(m);   // pad set-dressing
     for (const u of this.storyUltras || []) Enemies.scene.remove(u.m);
     for (const x of this.storyFx) Enemies.scene.remove(x.m);
+    if (this.hordeIm) {
+      for (const im of this.hordeIm) {
+        Enemies.scene.remove(im); im.dispose();
+        im.geometry.dispose(); im.material.dispose();
+      }
+      this.hordeIm = null;
+    }
+    this.horde = [];
     this.storyMarines = []; this.storyUltras = []; this.storyFx = [];
     if (this.storyFire) { Enemies.scene.remove(this.storyFire); this.storyFire = null; }
     if (this.cityGlow) { Enemies.scene.remove(this.cityGlow); this.cityGlow = null; }
@@ -790,6 +845,7 @@ const Intro = {
       for (const e of Enemies.list) Enemies.scene.remove(e.mesh);
       Enemies.list = [];
     }
+    spawnQueue.length = 0;                                       // nothing hatches posthumously
     document.removeEventListener('keydown', this._skip);
     document.removeEventListener('mousedown', this._skip);
     if (this._vMove) document.removeEventListener('mousemove', this._vMove);

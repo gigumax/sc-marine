@@ -334,6 +334,7 @@ function restart() {
   for (const s of Player.smoke) Enemies.scene.remove(s.m);
   Player.missiles = []; Player.smoke = [];
   Enemies.list = []; Enemies.gibs = []; Enemies.pickups = []; Player.tracers = [];
+  spawnQueue.length = 0;                          // nothing hatches posthumously
   Net.resetMatch();              // drop remote replicas/state for the rematch
   // restore spawn-hives
   for (const s of World.spawners) {

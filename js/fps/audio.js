@@ -15,6 +15,17 @@ const Audio2 = {
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
+    // the first speak() cold-starts the TTS engine and can freeze the main
+    // thread for a second+ — burn that cost here, inside a user gesture
+    if (!this._ttsWarm && window.speechSynthesis) {
+      this._ttsWarm = true;
+      try {
+        speechSynthesis.getVoices();
+        const u = new SpeechSynthesisUtterance(' ');
+        u.volume = 0; u.rate = 1.4;
+        speechSynthesis.speak(u);
+      } catch (e) {}
+    }
     return this.ctx;
   },
 

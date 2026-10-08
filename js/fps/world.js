@@ -382,7 +382,7 @@ function buildBase(scene) {
   const sgt = { x: 0, z: BZ, r: 3.1, h: 3.2 };
   g.userData.base = true;                            // hitscan walk-up tag
   World.base = { g, thr, warp, dust, col, sgt, lift: -1, delay: -1, warped: false,
-    hp: 300, boomed: false, boomK: 0, civs: [], boomLight: null, flash: null };
+    hp: 180, boomed: false, boomK: 0, civs: [], boomLight: null, flash: null };
   World.colliders.push(col);
   World.sight.push(sgt);
 }
@@ -391,7 +391,7 @@ function buildBase(scene) {
 function resetBaseLift() {
   const b = World.base; if (!b) return;
   b.g.visible = true; b.g.position.y = .12; b.g.rotation.set(0, 0, 0);
-  b.hp = 300; b.boomed = false; b.boomK = 0;             // easter egg — whole again
+  b.hp = 180; b.boomed = false; b.boomK = 0;             // easter egg — whole again
   b.g.traverse(m => {                                   // un-char the hull
     if (m.isMesh && m.userData.oc !== undefined) {
       m.material.color.setHex(m.userData.oc);
@@ -405,7 +405,7 @@ function resetBaseLift() {
   if (b.flash) { Enemies.scene.remove(b.flash.m); b.flash = null; }
   b.thr.visible = false;
   b.warp.visible = false; b.warp.material.opacity = 0;
-  b.lift = -1; b.warped = false; b.delay = 2.4;
+  b.lift = -1; b.warped = false; b.delay = -1;           // stays parked — shoot it if you dare
   for (const p of b.dust) { p.life = 0; p.m.visible = false; }
   if (!World.colliders.includes(b.col)) World.colliders.push(b.col);
   if (!World.sight.includes(b.sgt)) World.sight.push(b.sgt);
