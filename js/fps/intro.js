@@ -144,21 +144,21 @@ const Intro = {
     core.material = core.material.clone();
     this.core = core;
 
-    /* chest = four panels, each pivots on the diagonal axis of its own
-       corner — they iris open like a high-tech hatch */
+    /* chest = four panels hinged at the torso's outer corners —
+       they peel outward so the cross seam splits open first */
     this.panels = [];
     for (const [cx, cy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
       const pivot = new THREE.Group();
-      pivot.position.set(cx * .135, 1.18 + cy * .17, .27);
-      pivot.userData.axis = new THREE.Vector3(cx, cy, 0).normalize();
-      const plate = B(.26, .33, .06, armor, 0, 0, 0, pivot);
+      pivot.position.set(cx * .27, 1.18 + cy * .33, .24);           // at the suit's corner
+      pivot.userData.axis = new THREE.Vector3(-cy, cx, 0).normalize(); // tangent → swings out
+      const plate = B(.26, .33, .06, armor, -cx * .135, -cy * .16, .03, pivot);
       plate.material = plate.material.clone();
       plate.material.color.setHex(0x36495e);
-      B(.05, .05, .065, glowC, -cx * .06, -cy * .08, 0, pivot);     // corner light
+      B(.05, .05, .065, glowC, -cx * .06, -cy * .08, .04, pivot);   // corner light
       body.add(pivot);
       this.panels.push(pivot);
     }
-    this.setChest(1);                                               // start open
+    this.setChest(0);                                               // sealed — no opening yet
   },
 
   /* 1 = iris fully open, 0 = sealed shut */
@@ -179,7 +179,7 @@ const Intro = {
     this.playing = true; this.armed = false;
     this.t = 0; this.cb = cb;
     // reset animatables
-    this.setChest(1);
+    this.setChest(0);
     this.door.position.y = 1.35;
     this.doorGlow.material.opacity = .06;
     this.outLight.intensity = 0;
@@ -252,6 +252,12 @@ const Intro = {
       cam.position.set(0, _lz(1.55, 1.42, k), _lz(4.6, 1.15, k));
       this.look.set(0, 1.25, .25);
       fade.style.opacity = 1 - Math.min(1, t / .8);  // fade in from black
+      // chest irises open as you arrive — servo whine first
+      if (t - dt < 1.3 && t >= 1.3) {
+        Audio2.noise(.55, .18, 700, .7);
+        Audio2.tone(300, .5, 'triangle', .08, 700);
+      }
+      this.setChest(_ez(Math.min(1, Math.max(0, (t - 1.3) / .9))));
     } else if (t < 4.0) {                            // — step in, turn to the door —
       const k = _ez((t - 2.6) / 1.4);
       cam.position.set(0, _lz(1.42, 1.3, k), _lz(1.15, .02, k));
