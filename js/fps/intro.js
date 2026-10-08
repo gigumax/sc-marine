@@ -412,6 +412,7 @@ const Intro = {
     }
     this.smokeT = 0; this._boomed = false; this.killT = 0; this.ultraGo = false;
     this.sAmb = .6; this.sGun = 5; this.sScr = 1.5;            // soundscape timers
+    this._mus = 0; this._stung = 0;                            // score state
     const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
     try { Audio2.ensure && Audio2.ensure(); } catch (e) {}
     const begin = () => {
@@ -443,6 +444,11 @@ const Intro = {
   storyUpdate(dt) {
     if (this.gated) return;                               // held for the unlock gesture
     const t = this.storyT += dt, cam = this.storyCam;
+    if (!this._mus && Audio2.ctx && Audio2.ctx.state === 'running') {
+      this._mus = 1;                                       // first live frame — roll the score
+      Audio2.musicStart();
+    }
+    Audio2.musicLevel(t > 12 ? 2 : t > 5.5 ? 1 : 0);         // drums join as the wall opens up
     const f = document.getElementById('intro-fade');
     if (t < 1.1) f.style.opacity = 1 - t / 1.1;           // fade in from black
     else if (t > 21.4) {                                 // city gone — fade to black
@@ -626,6 +632,10 @@ const Intro = {
     if (t > 14.5 && !this.ultraGo) {
       this.ultraGo = true;
       try { Audio2.noise(1.6, .7, 70, .7); } catch (e) {}        // ground-shaking bellow
+    }
+    if (this.ultraGo && !this._stung) {
+      this._stung = 1;
+      Audio2.musicSting(); Audio2.musicLevel(3);               // BRAAAM — the rampage begins
     }
     if (this.ultraGo) for (const u of this.storyUltras) {
       const up = u.m.position;
@@ -921,6 +931,7 @@ const Intro = {
       Enemies.list = [];
     }
     spawnQueue.length = 0;                                       // nothing hatches posthumously
+    Audio2.musicStop();                                          // curtain — score fades out
     document.removeEventListener('keydown', this._skip);
     document.removeEventListener('mousedown', this._skip);
     if (this._gate) {

@@ -157,3 +157,142 @@ if (typeof document !== 'undefined') {
   document.addEventListener('pointerdown', _unlock);
   document.addEventListener('keydown', _unlock);
 }
+
+/* ============ cinematic score — synthesized dread, no audio files ============
+   D-minor drone + war drums on a 16-step grid (100bpm 16ths). Three intensity
+   levels ride up with the battle; a dissonant sting marks the ultras. */
+Audio2.music = null;
+Audio2._musStep = 0.15;
+
+Audio2.musicStart = function () {
+  try {
+    const ctx = this.ensure();
+    this.musicStop();
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0, ctx.currentTime);
+    master.gain.linearRampToValueAtTime(0.9, ctx.currentTime + 3.5);   // swell in
+    master.connect(ctx.destination);
+    // the drone — detuned D saws through a slow-breathing lowpass + sub sine
+    const droneG = ctx.createGain(); droneG.gain.value = .10;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 2;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = .07;
+    const lfoG = ctx.createGain(); lfoG.gain.value = 140;
+    lfo.connect(lfoG); lfoG.connect(lp.frequency); lfo.start();
+    const oA = ctx.createOscillator(); oA.type = 'sawtooth'; oA.frequency.value = 36.71;        // D1
+    const oB = ctx.createOscillator(); oB.type = 'sawtooth'; oB.frequency.value = 73.42 * 1.003; // D2+
+    const oC = ctx.createOscillator(); oC.type = 'sine'; oC.frequency.value = 18.36;             // D0 sub
+    oA.connect(lp); oB.connect(lp); oC.connect(droneG);
+    lp.connect(droneG); droneG.connect(master);
+    oA.start(); oB.start(); oC.start();
+    this.music = {
+      master, nodes: [oA, oB, oC, lfo], step: 0, lvl: 0,
+      nextT: ctx.currentTime + .1,
+      timer: setInterval(() => this._musPump(), 60),
+    };
+  } catch (e) {}
+};
+
+Audio2.musicStop = function () {
+  const m = this.music; if (!m) return;
+  this.music = null;
+  clearInterval(m.timer);
+  try {
+    const at = this.ctx.currentTime;
+    m.master.gain.cancelScheduledValues(at);
+    m.master.gain.setValueAtTime(m.master.gain.value, at);
+    m.master.gain.linearRampToValueAtTime(0, at + 1.4);
+    for (const o of m.nodes) { try { o.stop(at + 1.5); } catch (e) {} }
+    setTimeout(() => { try { m.master.disconnect(); } catch (e) {} }, 1800);
+  } catch (e) {}
+};
+
+Audio2.musicLevel = function (n) {              // intensity only ever climbs
+  if (this.music) this.music.lvl = Math.max(this.music.lvl, n);
+};
+
+/* BRAAAM — the ultras step on stage: low cluster with a minor-second rub */
+Audio2.musicSting = function () {
+  try {
+    const ctx = this.ensure(), m = this.music; if (!m) return;
+    const at = ctx.currentTime + .02;
+    for (const f of [36.71, 73.42, 110, 138.4]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
+      const gn = ctx.createGain();
+      gn.gain.setValueAtTime(.001, at);
+      gn.gain.exponentialRampToValueAtTime(.14, at + .05);
+      gn.gain.exponentialRampToValueAtTime(.001, at + 2.6);
+      o.connect(lp); lp.connect(gn); gn.connect(m.master);
+      o.start(at); o.stop(at + 2.7);
+    }
+    this._drum(m.master, at, 40, .7);
+  } catch (e) {}
+};
+
+Audio2._musPump = function () {                 // lookahead scheduler — 250ms ahead
+  const m = this.music; if (!m) return;
+  const ctx = this.ctx;
+  while (m.nextT < ctx.currentTime + 0.25) {
+    this._musNote(m, m.step, m.nextT, m.lvl);
+    m.step++; m.nextT += this._musStep;
+  }
+};
+
+Audio2._musNote = function (m, s, at, lvl) {
+  const st = s % 16, bar = (s / 16) | 0;
+  if (st === 0 || (lvl >= 1 && st === 10)) this._drum(m.master, at, 52, .5);   // timpani downbeat
+  if ((lvl >= 1 && (st === 0 || st === 8)) || (lvl >= 2 && (st === 3 || st === 11)))
+    this._drum(m.master, at, 88, .32);                                         // war-drum hits
+  if (lvl >= 2 && (st === 4 || st === 12)) this._snap(m.master, at);           // snare cracks
+  if (st === 0 && bar % 2 === 0) this._stab(m.master, at, bar);                // slow minor stab
+  if (lvl >= 2 && st === 15 && bar % 4 === 3) this._riser(m.master, at);       // dread riser
+};
+
+Audio2._drum = function (master, at, f, g) {    // timpani/tom — pitch-drop sine thump
+  const ctx = this.ctx, o = ctx.createOscillator(), gn = ctx.createGain();
+  o.frequency.setValueAtTime(f * 2, at);
+  o.frequency.exponentialRampToValueAtTime(f * .6, at + .18);
+  gn.gain.setValueAtTime(g, at);
+  gn.gain.exponentialRampToValueAtTime(.001, at + .5);
+  o.connect(gn); gn.connect(master);
+  o.start(at); o.stop(at + .55);
+};
+
+Audio2._snap = function (master, at) {          // noise snare-crack
+  const ctx = this.ctx, src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = .8;
+  const gn = ctx.createGain();
+  gn.gain.setValueAtTime(.2, at);
+  gn.gain.exponentialRampToValueAtTime(.001, at + .12);
+  src.connect(bp); bp.connect(gn); gn.connect(master);
+  src.start(at); src.stop(at + .15);
+};
+
+Audio2._stab = function (master, at, bar) {     // i–VI–iv–V wheel, slow-swelled = dread
+  const CH = [[146.83, 174.61, 220], [116.54, 146.83, 174.61],
+              [98, 116.54, 146.83], [110, 138.59, 164.81]];
+  const ch = CH[((bar / 2) | 0) % 4];
+  for (const f of ch) {
+    const o = this.ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+    const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    const gn = this.ctx.createGain();
+    gn.gain.setValueAtTime(0, at);
+    gn.gain.linearRampToValueAtTime(.045, at + .3);
+    gn.gain.linearRampToValueAtTime(0, at + 2.4);
+    o.connect(lp); lp.connect(gn); gn.connect(master);
+    o.start(at); o.stop(at + 2.5);
+  }
+};
+
+Audio2._riser = function (master, at) {         // 2s noise sweep up into the next bar
+  const ctx = this.ctx, src = ctx.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 4;
+  bp.frequency.setValueAtTime(300, at);
+  bp.frequency.exponentialRampToValueAtTime(2400, at + 1.8);
+  const gn = ctx.createGain();
+  gn.gain.setValueAtTime(0, at);
+  gn.gain.linearRampToValueAtTime(.11, at + 1.6);
+  gn.gain.linearRampToValueAtTime(0, at + 2.2);
+  src.connect(bp); bp.connect(gn); gn.connect(master);
+  src.start(at); src.stop(at + 2.3);
+};
