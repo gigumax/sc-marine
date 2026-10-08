@@ -248,6 +248,10 @@ button.ghost:hover { color:#cfe4ff; border-color:#5a8aba; }
 .st-line { opacity:0; transition:opacity .35s; }
 #story-skip { position:fixed; right:5%; bottom:3.4vh; z-index:22; font-size:11px;
   letter-spacing:3px; color:#6a8ab8; animation:lobbyPulse 1.6s infinite; }
+#story-title { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+  z-index:23; font-size:min(9vw,74px); font-weight:800; letter-spacing:.22em; color:#ffb347;
+  text-shadow:0 0 18px rgba(255,110,30,.75), 0 0 60px rgba(255,60,10,.4);
+  opacity:0; pointer-events:none; text-align:center; }
 
 /* barracks tour */
 #barracks-back { position:fixed; left:18px; top:18px; z-index:24;

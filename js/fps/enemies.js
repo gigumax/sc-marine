@@ -379,7 +379,7 @@ function spawnEnemy(type, pos) {
   const e = {
     mesh, hunter, ultra,
     hp: ultra ? 1000 : hunter ? 240 : 68,
-    speed: (ultra ? 6.4 : hunter ? 4.2 : 11.2) * (0.9 + Math.random() * 0.25),
+    speed: (ultra ? 4.2 : hunter ? 4.2 : 11.2) * (0.9 + Math.random() * 0.25),
     radius: ultra ? 1.9 : hunter ? 1.05 : 0.7,
     attackCd: 0,
     lungeT: 0,
@@ -493,19 +493,30 @@ function updateSpawners(dt) {
       const wob = k > 0.7 ? Math.sin(Game.time * 9 + eg.m.position.x) * 0.05 : 0;  // shakes near hatch
       const b = (0.45 + 0.55 * k) * (eg.ultra ? 2.1 : 1);   // brood egg is huge
       eg.m.scale.set(b + wob, b * 0.75, b - wob);
-      if (eg.t >= T) {
-        eg.t = 0;                                   // a new egg starts gestating
-        if (Net.on && !Net.isHost) continue;        // host owns hatching
-        if (eg.ultra) {
-          const nU = Enemies.list.reduce((n, x) => n + (x.ultra && !x.dead ? 1 : 0), 0);
-          if (nU < 3) {
-            spawnEnemy('ultralisk', eg.m.position.clone());
-            eggPop(eg.m.position, true);
-          }
-        } else if (Enemies.list.length < 72) {
-          spawnEnemy('zergling', eg.m.position.clone());
-          eggPop(eg.m.position);
-        }
+    }
+    // the ling clutch bursts as ONE pack of 20 out of all six eggs at once
+    const le = s.eggs.filter(e => !e.ultra);
+    const ue = s.eggs.find(e => e.ultra);
+    const burst = le.length && le[0].t >= EGG_T;
+    const uHatch = ue && ue.t >= ULTRA_EGG_T;
+    if (burst) for (const eg of le) eg.t = 0;
+    if (uHatch) ue.t = 0;
+    if (Net.on && !Net.isHost) continue;            // host owns hatching
+    if (burst) {
+      for (const eg of le) eggPop(eg.m.position);
+      for (let i = 0; i < 20 && Enemies.list.length < 72; i++) {
+        const pos = le[i % le.length].m.position.clone();
+        pos.x += (Math.random() - .5) * 2.4;
+        pos.z += (Math.random() - .5) * 2.4;
+        spawnEnemy('zergling', pos);
+      }
+    }
+    // the brood egg keeps its own slow cycle — one ultralisk at a time
+    if (uHatch) {
+      const nU = Enemies.list.reduce((n, x) => n + (x.ultra && !x.dead ? 1 : 0), 0);
+      if (nU < 3) {
+        spawnEnemy('ultralisk', ue.m.position.clone());
+        eggPop(ue.m.position, true);
       }
     }
   }
@@ -774,7 +785,7 @@ function meleeHit(e, dmg) {
       const d = Math.hypot(q.mesh.position.x - px, q.mesh.position.z - pz);
       if (d < bd) { bd = d; victim = null; peerId = id; }
     }
-  if (bd >= 1.7) return;
+  if (bd >= (e.ultra ? 3.6 : 1.7)) return;       // kaiser blades reach way past the ling's nip
   if (victim) damageAlly(victim, dmg, e.mesh.position);
   else if (peerId) Net.hurt(peerId, dmg, e.mesh.position);
   else damagePlayer(dmg, e.mesh.position);

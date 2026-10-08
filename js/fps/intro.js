@@ -19,6 +19,7 @@ const Intro = {
   _suitHot: false, onSuitTap: null,
   // opening story — flies the REAL map while eggs hatch and the pack runs
   story: false, storyT: 0, storyCam: null, storyMarines: [], storyFx: [], fxT: 0,
+  storyFire: null, smokeT: 0, _boomed: false,
 
   /* ---------- one-time scene build ---------- */
   build() {
@@ -192,16 +193,30 @@ const Intro = {
         spawnEnemy('zergling', p);
       }
     }
-    // marines dug in on the pad — muzzle flashes once the swarm closes
-    for (const mx of [-1.6, 0, 1.6]) {
+    // people at the base — firing line on the pad, hands at the skirt, two on deck
+    const CREW = [
+      [-1.7, 0, 13.8, 12.4], [1.7, 0, 13.8, 12.9],       // firing line
+      [-0.7, 0, 16.4, 11.6], [0.8, 0, 16.2, 12.0],       // right at the skirt
+      [-0.5, 2.3, 18.3, 13.6], [0.6, 2.3, 17.7, 14.1],   // up on the deck
+    ];
+    this.storyMarines = [];
+    for (const [mx, my, mz, ft] of CREW) {
       const m = buildMarineMesh(0x4ad0ff);
-      m.position.set(mx, 0, 14.5 - Math.abs(mx));
-      m.rotation.y = Math.PI;                             // face the oncoming north
+      m.position.set(mx, my, mz);
+      m.rotation.y = Math.PI + (Math.random() - .5) * .3;
       for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
-      const gun = m.children.find(c => c.isGroup); if (gun) gun.position.z += 0.1;
+      m.userData.fallT = ft; m.userData.onDeck = my > 0;
       Enemies.scene.add(m);
       this.storyMarines.push(m);
     }
+    if (World.base) {                                    // wreck state + fire light
+      World.base.g.rotation.set(0, 0, 0); World.base.g.position.y = .12;
+      this.storyFire = new THREE.PointLight(0xff6a22, 0, 14);
+      this.storyFire.position.set(0, 1.6, 18);
+      Enemies.scene.add(this.storyFire);
+    }
+    this.smokeT = 0; this._boomed = false;
+    const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
     try { Audio2.ensure && Audio2.ensure(); } catch (e) {}
     this._skip = () => { if (this.armed) this.stop(); };
     setTimeout(() => { this.armed = true; }, 900);
@@ -213,10 +228,13 @@ const Intro = {
     const t = this.storyT += dt, cam = this.storyCam;
     const f = document.getElementById('intro-fade');
     if (t < 1.1) f.style.opacity = 1 - t / 1.1;           // fade in from black
-    else if (t > 11.6) {                                 // white-out into the roster
-      f.style.background = '#fff';
-      f.style.opacity = Math.min(1, (t - 11.6) / .7);
+    else if (t > 15.4) {                                 // base gone — fade to black
+      f.style.background = '#000';
+      f.style.opacity = Math.min(1, (t - 15.4) / .7);
     }
+    const ttl = document.getElementById('story-title');  // DEFEND MANKIND on the black
+    if (ttl) ttl.style.opacity =
+      Math.max(0, Math.min(1, (t - 16.0) / .9)) * (t > 17.3 ? Math.max(0, 1 - (t - 17.3) / .6) : 1);
 
     // keyframed aerial — over the nest, chase the pack south, end on the pad
     const KS = [
@@ -224,7 +242,9 @@ const Intro = {
       [4.0, -72, 11, -228,   -70, 1, -260],
       [8.0, -56,  7, -150,   -20, 2, -80],
       [11.0,  9,  6,  34,      0, 1.6, 18],
-      [12.4,  9,  6,  34,      0, 1.6, 18],
+      [13.4,  6,  4,  27,      0, 1.4, 18],   // push in — swarm piles the hull
+      [15.4,  4,  2.6, 24,     0, 1.0, 18],   // close on the wreck
+      [17.4,  5,  8,  30,      0, 1.5, 18],   // rise over the burn
     ];
     let i = 0;
     while (i < KS.length - 2 && t >= KS[i + 1][0]) i++;
@@ -243,18 +263,57 @@ const Intro = {
         e.storyTgt = { x: (Math.random() - .5) * 8, z: 14 + Math.random() * 4 };
         e.storySpd = 20 + Math.random() * 10;
         e.storyPh  = Math.random() * 7;
+        e.storyJx  = Math.random() - .5;
+      }
+      if (t > 10.5) {                                    // swarm converges ON the base
+        e.storyTgt.x = e.storyJx * 4.4;
+        e.storyTgt.z = 18 + e.storyJx * 3;
       }
       const mp = e.mesh.position;
       const dx = e.storyTgt.x - mp.x, dz = e.storyTgt.z - mp.z, d = Math.hypot(dx, dz);
-      if (d > 2) {
+      if (d > 2.2) {
         mp.x += dx / d * e.storySpd * dt;
         mp.z += dz / d * e.storySpd * dt;
         e.mesh.rotation.y = Math.atan2(dx, dz);
+        mp.y = Math.abs(Math.sin(t * 14 + e.storyPh)) * .12;
+      } else {                                           // arrived — climb and scrabble the hull
+        mp.y += ((1.0 + (e.storyPh % 1) * .9) - mp.y) * Math.min(1, dt * 3);
+        mp.x += Math.sin(t * 3 + e.storyPh) * dt * .5;
+        mp.z += Math.cos(t * 2.4 + e.storyPh) * dt * .4;
       }
-      mp.y = Math.abs(Math.sin(t * 14 + e.storyPh)) * .12;
       const legs = e.mesh.userData.legs || [];
       for (let li = 0; li < legs.length; li++)
         legs[li].rotation.x = Math.sin(t * 16 + e.storyPh + li) * .5;
+    }
+
+    // crew get swarmed one by one — they tip over as the pack reaches them
+    for (const m of this.storyMarines) {
+      const ud = m.userData;
+      if (t > ud.fallT) ud.fell = true;
+      if (ud.fell) m.rotation.x += (-1.45 - m.rotation.x) * Math.min(1, dt * 4);
+      if (ud.onDeck && World.base)
+        m.position.y = 2.3 + (World.base.g.position.y - .12);   // ride the deck down
+    }
+
+    // the base burns and lists over — there were people inside
+    if (t > 12.8 && World.base) {
+      const g = World.base.g, k = Math.min(1, (t - 12.8) / 2.6);
+      g.rotation.z = _ez(k) * .34;
+      g.position.y = .12 - _ez(k) * .7;
+      if (this.storyFire) this.storyFire.intensity = 2 + Math.random() * 3.5;
+      if (t > 13 && !this._boomed) {
+        this._boomed = true;
+        try { Audio2.noise(1.4, .5, 90, .6); } catch (e) {}
+      }
+      this.smokeT -= dt;
+      if (this.smokeT <= 0) {
+        this.smokeT = .1;
+        const p = new THREE.Mesh(new THREE.SphereGeometry(.5, 5, 4),
+          new THREE.MeshBasicMaterial({ color: 0x140f0b, transparent: true, opacity: .55 }));
+        p.position.set((Math.random() - .5) * 2, 1.7 + Math.random(), 18 + (Math.random() - .5) * 2);
+        Enemies.scene.add(p);
+        this.storyFx.push({ m: p, t: 0, ttl: 2.3, op: .55, vy: 1.7, grow: 1.1 });
+      }
     }
 
     // pad marines open up once the pack gets close
@@ -262,7 +321,8 @@ const Intro = {
       this.fxT -= dt;
       if (this.fxT <= 0) {
         this.fxT = 0.22 + Math.random() * .18;
-        const mar = this.storyMarines[Math.floor(Math.random() * this.storyMarines.length)];
+        const standing = this.storyMarines.filter(m => !m.userData.fell);
+        const mar = standing.length && standing[Math.floor(Math.random() * standing.length)];
         const live = Enemies.list.filter(e => !e.dead && e.mesh.position.z > -60);
         if (mar && live.length) {
           const tgt = live[Math.floor(Math.random() * live.length)].mesh.position;
@@ -277,12 +337,15 @@ const Intro = {
       }
     }
     for (const x of this.storyFx) {
-      x.t += dt; x.m.material.opacity = .9 * (1 - x.t / .1);
-      if (x.t > .1) { Enemies.scene.remove(x.m); x.done = true; }
+      x.t += dt;
+      if (x.vy) x.m.position.y += x.vy * dt;
+      if (x.grow) x.m.scale.multiplyScalar(1 + dt * x.grow);
+      x.m.material.opacity = (x.op || .9) * Math.max(0, 1 - x.t / (x.ttl || .1));
+      if (x.t > (x.ttl || .1)) { Enemies.scene.remove(x.m); x.done = true; }
     }
     this.storyFx = this.storyFx.filter(x => !x.done);
 
-    if (t >= 12.4) this.stop();
+    if (t >= 18.2) this.stop();
   },
 
   /* walk in and look around — mouse steers the head, no pointer lock */
@@ -369,6 +432,9 @@ const Intro = {
     for (const m of this.storyMarines) Enemies.scene.remove(m);   // pad set-dressing
     for (const x of this.storyFx) Enemies.scene.remove(x.m);
     this.storyMarines = []; this.storyFx = [];
+    if (this.storyFire) { Enemies.scene.remove(this.storyFire); this.storyFire = null; }
+    if (World.base) { World.base.g.rotation.set(0, 0, 0); World.base.g.position.y = .12; }
+    const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
     if (Enemies.list.length) {                                   // story extras — fresh field for the game
       for (const e of Enemies.list) Enemies.scene.remove(e.mesh);
       Enemies.list = [];

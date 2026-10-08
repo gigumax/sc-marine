@@ -293,7 +293,8 @@ function buildWorld(scene) {
     World.colliders.push({ x: gx, z: gz, r: 3.4 });
     World.sight.push({ x: gx, z: gz, r: 3.4, h: 1.6 });    // duck behind the mound
 
-    // green eggs ringing the mound — gestate EGG_T seconds, then a zergling pops out
+    // green eggs ringing the mound — one clutch on one clock; it bursts as a pack of 20
+    const t0 = Math.random() * EGG_T;
     for (let i = 0; i < 6; i++) {
       const a = i / 6 * Math.PI * 2 + Math.random() * 0.5;
       const r = 4.7 + Math.random() * 0.8;
@@ -301,7 +302,7 @@ function buildWorld(scene) {
       egg.scale.set(1, 0.75, 1);
       egg.position.set(gx + Math.cos(a) * r, 0.3, gz + Math.sin(a) * r);
       scene.add(egg);
-      spawner.eggs.push({ m: egg, t: Math.random() * EGG_T });
+      spawner.eggs.push({ m: egg, t: t0 });
     }
     // the brood egg — twice the size, hatches the ultralisk
     const ua = Math.random() * Math.PI * 2;
