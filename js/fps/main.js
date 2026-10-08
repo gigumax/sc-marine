@@ -182,7 +182,8 @@ function pollPad(dt) {
   if (once(0)) tryJump();                            // A
   if (once(9)) {                                     // Start
     if (Player.dead || Game.won) restart();
-    else if (!Game.running && !Intro.playing && $id('lobbyscreen').classList.contains('hidden')) {
+    else if (!Game.running && !Intro.playing && !Intro.visiting
+             && $id('lobbyscreen').classList.contains('hidden')) {
       soloOps();
     }
   }
@@ -440,6 +441,16 @@ window.addEventListener('load', () => {
     Game.unit = b.dataset.unit;
   });
   $id('btn-solo').onclick = soloOps;
+  $id('btn-barracks').onclick = () => {
+    $id('startscreen').classList.add('hidden');
+    $id('barracks-back').classList.remove('hidden');
+    Intro.visit();
+  };
+  $id('barracks-back').onclick = () => {
+    Intro.leave();
+    $id('barracks-back').classList.add('hidden');
+    $id('startscreen').classList.remove('hidden');
+  };
   $id('btn-online').onclick = startOnline;
   $id('btn-lobby-cancel').onclick = () => {
     clearTimeout(Game._soloT);
@@ -461,7 +472,7 @@ window.addEventListener('load', () => {
   // Enter also starts
   window.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !Game.running && (Player.dead || Game.won)) restart();
-    else if (e.key === 'Enter' && !Game.running && !Intro.playing
+    else if (e.key === 'Enter' && !Game.running && !Intro.playing && !Intro.visiting
              && $id('lobbyscreen').classList.contains('hidden')) {
       soloOps();
     }

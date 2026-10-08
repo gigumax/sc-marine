@@ -2,7 +2,7 @@
    world.js — night arena: terrain, sky, obstacles, spawn gates
    ============================================================ */
 
-const ARENA_R = 62;              // playable radius (m)
+const ARENA_R = 620;             // playable radius (m) — 10x field
 const World = {
   colliders: [],                 // {x,z,r} — movement blockers
   sight: [],                     // {x,z,r,h} — line-of-sight blockers, h = top edge
@@ -41,7 +41,7 @@ function groundTexture() {
   }
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(10, 10);
+  tex.repeat.set(70, 70);
   return tex;
 }
 
@@ -71,19 +71,19 @@ function skyTexture() {
 
 /* ---------- world build ---------- */
 function buildWorld(scene) {
-  scene.fog = new THREE.FogExp2(0x0a0d14, 0.030);
+  scene.fog = new THREE.FogExp2(0x0a0d14, 0.005);
   scene.background = new THREE.Color(0x05060f);
 
   // sky dome
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(400, 24, 16),
+    new THREE.SphereGeometry(1500, 24, 16),
     new THREE.MeshBasicMaterial({ map: skyTexture(), side: THREE.BackSide })
   );
   scene.add(sky);
 
   // ground
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(ARENA_R * 2 + 40, ARENA_R * 2 + 40),
+    new THREE.PlaneGeometry(ARENA_R * 2 + 160, ARENA_R * 2 + 160),
     new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 1, metalness: 0 })
   );
   ground.rotation.x = -Math.PI / 2;
@@ -97,14 +97,14 @@ function buildWorld(scene) {
   const hemi = new THREE.HemisphereLight(0x1c2438, 0x0a0c12, 0.5);
   scene.add(hemi);
 
-  // perimeter cliff ring
+  // perimeter cliff ring — huge crags spaced around the whole rim
   const cliffMat = new THREE.MeshStandardMaterial({ color: 0x232c3c, roughness: 1 });
-  for (let i = 0; i < 26; i++) {
-    const a = i / 26 * Math.PI * 2;
-    const r = ARENA_R + 8 + Math.random() * 8;
-    const h = 8 + Math.random() * 14;
+  for (let i = 0; i < 140; i++) {
+    const a = i / 140 * Math.PI * 2;
+    const r = ARENA_R + 12 + Math.random() * 14;
+    const h = 16 + Math.random() * 26;
     const rock = new THREE.Mesh(
-      new THREE.ConeGeometry(5 + Math.random() * 6, h, 5),
+      new THREE.ConeGeometry(9 + Math.random() * 11, h, 5),
       cliffMat
     );
     rock.position.set(Math.cos(a) * r, h / 2 - 0.5, Math.sin(a) * r);
@@ -112,22 +112,34 @@ function buildWorld(scene) {
     scene.add(rock);
   }
 
+  // hive positions — the nest is dug in along the far north edge
+  const HIVES = [[-150, -380], [150, -380], [-70, -260], [70, -260]];
+
   // scattered crates & rocks (cover)
   const crateMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.8, metalness: 0.3 });
   const rockMat  = new THREE.MeshStandardMaterial({ color: 0x1f2733, roughness: 1 });
-  const crates = [
-    [8, -6, 1.6], [-10, 4, 1.4], [16, 12, 1.8], [-18, -14, 1.5],
-    [4, 22, 1.4], [-6, -24, 1.7], [24, -18, 1.5], [-26, 16, 1.6],
-    [30, 6, 1.4], [-32, -6, 1.8], [12, -30, 1.5], [-14, 30, 1.5],
-    [34, -28, 1.6], [-36, 26, 1.4], [0, -38, 1.7], [2, 36, 1.5],
-  ];
-  for (const [x, z, s] of crates) {
+  const cover = (x, z, s) => {
     const box = new THREE.Mesh(new THREE.BoxGeometry(s * 2, s * 1.6, s * 2), Math.random() < .5 ? crateMat : rockMat);
     box.position.set(x, s * 0.8, z);
     box.rotation.y = Math.random() * 1.5;
     scene.add(box);
     World.colliders.push({ x, z, r: s * 1.45 });
     World.sight.push({ x, z, r: s * 1.45, h: s * 1.6 });   // cover: blocks the swarm's view
+  };
+  const crates = [
+    [64, -48, 1.6], [-80, 32, 1.4], [128, 96, 1.8], [-144, -112, 1.5],
+    [32, 176, 1.4], [-48, -192, 1.7], [192, -144, 1.5], [-208, 128, 1.6],
+    [240, 48, 1.4], [-256, -48, 1.8], [96, -240, 1.5], [-112, 240, 1.5],
+    [272, -224, 1.6], [-288, 208, 1.4], [0, -304, 1.7], [16, 288, 1.5],
+  ];
+  for (const [x, z, s] of crates) cover(x, z, s);
+  // procedural scatter — the big field still needs cover between pads and nests
+  for (let i = 0; i < 70; i++) {
+    const a = Math.random() * Math.PI * 2, r = 40 + Math.random() * (ARENA_R - 80);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (Math.hypot(x, z - 18) < 14) continue;                    // keep the drop pad clear
+    if (HIVES.some(h => Math.hypot(x - h[0], z - h[1]) < 14)) continue;
+    cover(x, z, 1.3 + Math.random() * 1.4);
   }
 
   // mineral crystal clusters (StarCraft flavor, glowing)
@@ -135,7 +147,8 @@ function buildWorld(scene) {
     color: 0x3fa8e0, emissive: 0x1a6ab0, emissiveIntensity: 0.9,
     roughness: 0.2, metalness: 0.4, transparent: true, opacity: 0.95,
   });
-  for (const [cx, cz] of [[-20, -34], [38, 20], [-40, 10]]) {
+  for (const [cx, cz] of [[-160, -272], [304, 160], [-320, 80],
+                          [180, -120], [-200, -160], [80, 280], [-60, 340]]) {
     const cluster = new THREE.Group();
     for (let i = 0; i < 6; i++) {
       const h = 1.2 + Math.random() * 2.2;
@@ -156,8 +169,9 @@ function buildWorld(scene) {
   // blinds — chest-high slabs with firing gaps; duck behind and lings can't see
   // you, but your rifle still reaches over the top or through the gaps
   const blindMat = new THREE.MeshStandardMaterial({ color: 0x37465c, roughness: .75, metalness: .3 });
-  for (const [bx, bz, sw, n] of [[-12, -14, 2.2, 2], [12, -14, 2.2, 2],
-                                [0, -25, 2.2, 3], [-20, -35, 2.2, 2], [20, -35, 2.2, 2]]) {
+  for (const [bx, bz, sw, n] of [[-96, -112, 2.2, 2], [96, -112, 2.2, 2],
+                                [0, -200, 2.2, 3], [-160, -280, 2.2, 2], [160, -280, 2.2, 2],
+                                [-40, -60, 2.2, 2], [40, -60, 2.2, 2], [-80, 40, 2.2, 3], [80, 40, 2.2, 3]]) {
     const gap = 1.0, total = n * sw + (n - 1) * gap;
     for (let i = 0; i < n; i++) {
       const sx = bx - total / 2 + sw / 2 + i * (sw + gap);
@@ -169,8 +183,12 @@ function buildWorld(scene) {
     }
   }
 
-  // spawn-hives — the nest is dug in along the north edge, guarded together
-  for (const [gx, gz] of [[-19, -46], [19, -46], [-9, -31], [9, -31]]) {
+  // spawn-hives — the nest is dug in along the far north edge, guarded together
+  const eggMat = new THREE.MeshStandardMaterial({
+    color: 0x2e6b20, emissive: 0x3aff50, emissiveIntensity: 0.55, roughness: 0.35,
+  });
+  const eggGeo = new THREE.SphereGeometry(0.4, 9, 7);
+  for (const [gx, gz] of HIVES) {
     const gate = new THREE.Group();
     // per-hive materials so damage/death affects only that hive
     const ringMat = new THREE.MeshStandardMaterial({
@@ -221,11 +239,23 @@ function buildWorld(scene) {
       mesh: gate, ring, ringMat, moundMat, sacMat, beam, glow,
       pos: new THREE.Vector3(gx, 0, gz),
       hp: 4000, maxHp: 4000, dead: false, flash: 0,
+      eggs: [],                                          // gestating zerglings
     };
     gate.userData.spawner = spawner;
     World.spawners.push(spawner);
     World.colliders.push({ x: gx, z: gz, r: 2.4 });
     World.sight.push({ x: gx, z: gz, r: 2.4, h: 1.4 });    // duck behind the mound
+
+    // green eggs ringing the mound — 5s gestation, then a zergling pops out
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2 + Math.random() * 0.5;
+      const r = 3.9 + Math.random() * 0.7;
+      const egg = new THREE.Mesh(eggGeo, eggMat);
+      egg.scale.set(1, 0.75, 1);
+      egg.position.set(gx + Math.cos(a) * r, 0.3, gz + Math.sin(a) * r);
+      scene.add(egg);
+      spawner.eggs.push({ m: egg, t: Math.random() * 5 });
+    }
   }
 
   buildBase(scene);

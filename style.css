@@ -248,3 +248,8 @@ button.ghost:hover { color:#cfe4ff; border-color:#5a8aba; }
 .st-line { opacity:0; transition:opacity .35s; }
 #story-skip { position:fixed; right:5%; bottom:3.4vh; z-index:22; font-size:11px;
   letter-spacing:3px; color:#6a8ab8; animation:lobbyPulse 1.6s infinite; }
+
+/* barracks tour */
+#btn-barracks { margin-top:14px; padding:10px 26px; font-size:12px; }
+#barracks-back { position:fixed; left:18px; top:18px; z-index:24;
+  padding:10px 18px; font-size:12px; letter-spacing:2px; }

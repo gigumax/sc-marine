@@ -9,10 +9,11 @@ const _ez = x => x * x * (3 - 2 * x);           // smoothstep
 const _lz = (a, b, x) => a + (b - a) * x;
 
 const Intro = {
-  playing: false, menu: false, t: 0, menuT: 0, cb: null,
+  playing: false, menu: false, visiting: false, t: 0, menuT: 0, cb: null,
   scene: null, cam: null,
   chest: null, door: null, doorGlow: null, outLight: null,
   look: new THREE.Vector3(), armed: false,
+  vYaw: Math.PI, vPitch: 0, vYawT: Math.PI, vPitchT: 0, _vMove: null,
 
   /* ---------- one-time scene build ---------- */
   build() {
@@ -156,10 +157,37 @@ const Intro = {
     document.getElementById('intro-fade').style.opacity = 0;
   },
 
-  active() { return this.playing || this.menu; },
+  active() { return this.playing || this.menu || this.visiting; },
+
+  /* walk in and look around — mouse steers the head, no pointer lock */
+  visit() {
+    if (!this.scene) this.build();
+    if (!this.cam)
+      this.cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 60);
+    else this.cam.aspect = innerWidth / innerHeight, this.cam.updateProjectionMatrix();
+    this.visiting = true; this.menu = false;
+    this.vYaw = this.vYawT = Math.PI;                    // start facing the suit rack
+    this.vPitch = this.vPitchT = 0;
+    if (this._vMove) document.removeEventListener('mousemove', this._vMove);
+    this._vMove = e => {
+      const nx = e.clientX / innerWidth * 2 - 1,
+            ny = e.clientY / innerHeight * 2 - 1;
+      this.vYawT   = Math.PI + nx * 2.1;                 // ~120° each way covers the room
+      this.vPitchT = Math.max(-0.9, Math.min(0.9, -ny * 0.9));
+    };
+    document.addEventListener('mousemove', this._vMove);
+    document.getElementById('intro-fade').style.opacity = 0;
+  },
+
+  leave() {
+    this.visiting = false;
+    if (this._vMove) { document.removeEventListener('mousemove', this._vMove); this._vMove = null; }
+    this.show();                                       // hand the camera back to the drift
+  },
 
   play(cb) {
     if (this.playing) return;
+    if (this.visiting) this.leave();         // can't be mid-tour when the drop goes
     if (!this.scene) this.build();
     if (!this.cam)
       this.cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 60);
@@ -190,7 +218,7 @@ const Intro = {
   },
 
   stop() {
-    this.playing = false; this.menu = false;
+    this.playing = false; this.menu = false; this.visiting = false;
     document.removeEventListener('keydown', this._skip);
     document.removeEventListener('mousedown', this._skip);
     document.getElementById('storyscreen').classList.add('hidden');
@@ -202,6 +230,20 @@ const Intro = {
   },
 
   update(dt) {
+    if (this.visiting) {                     // free-look visit — head follows the mouse
+      this.menuT += dt;
+      const t = this.menuT;
+      const k = Math.min(1, dt * 6);
+      this.vYaw += (this.vYawT - this.vYaw) * k;
+      this.vPitch += (this.vPitchT - this.vPitch) * k;
+      this.cam.position.set(Math.sin(t * .3) * .05, 1.5 + Math.sin(t * .9) * .02, 2.4);
+      const cy = Math.cos(this.vPitch), p = this.cam.position;
+      this.look.set(p.x + Math.sin(this.vYaw) * cy * 5,
+                    p.y + Math.sin(this.vPitch) * 5,
+                    p.z + Math.cos(this.vYaw) * cy * 5);
+      this.cam.lookAt(this.look);
+      return;
+    }
     if (this.menu && !this.playing) {          // menu backdrop — drift inside the barracks
       this.menuT += dt;
       const t = this.menuT;
