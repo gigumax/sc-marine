@@ -14,6 +14,7 @@ const Intro = {
   chest: null, door: null, doorGlow: null, outLight: null,
   look: new THREE.Vector3(), armed: false,
   vYaw: Math.PI, vPitch: 0, vYawT: Math.PI, vPitchT: 0,
+  vPos: new THREE.Vector3(0, 0, 2.4), bobT: 0,
   _vMove: null, _vClick: null, _vRay: null, _vNdc: null,
   _suitHot: false, onSuitTap: null,
 
@@ -176,6 +177,7 @@ const Intro = {
     this.suitFor(Game.unit || 'marine');                 // YOUR rig is the one on the rack
     this.vYaw = this.vYawT = Math.PI;                    // start facing the suit rack
     this.vPitch = this.vPitchT = 0;
+    this.vPos.set(0, 0, 2.4); this.bobT = 0;
     if (!this._vRay) this._vRay = new THREE.Raycaster();
     if (!this._vNdc) this._vNdc = new THREE.Vector2();
     if (this._vMove) document.removeEventListener('mousemove', this._vMove);
@@ -266,10 +268,32 @@ const Intro = {
       const k = Math.min(1, dt * 6);
       this.vYaw += (this.vYawT - this.vYaw) * k;
       this.vPitch += (this.vPitchT - this.vPitch) * k;
-      this.cam.position.set(Math.sin(t * .3) * .05, 1.5 + Math.sin(t * .9) * .02, 2.4);
-      const cy = Math.cos(this.vPitch), p = this.cam.position;
+      // WASD walk — room walls, bay funnel to the pad, sealed tunnel door
+      const p = this.vPos,
+        mv = ((KEYS['w'] || KEYS['arrowup']) ? 1 : 0) - ((KEYS['s'] || KEYS['arrowdown']) ? 1 : 0),
+        st = ((KEYS['d'] || KEYS['arrowright']) ? 1 : 0) - ((KEYS['a'] || KEYS['arrowleft']) ? 1 : 0);
+      if (mv || st) {
+        const sp = 2.6 * (KEYS['shift'] ? 1.7 : 1) * dt;
+        p.x += (Math.sin(this.vYaw) * mv + Math.cos(this.vYaw) * st) * sp;
+        p.z += (Math.cos(this.vYaw) * mv - Math.sin(this.vYaw) * st) * sp;
+        this.bobT += dt * 9;
+      }
+      p.z = Math.max(-13.4, Math.min(9.4, p.z));
+      if (p.z > 5.2 && Math.abs(p.x) > 0.68) p.z = 5.2;      // doorway funnel
+      if (p.z < -5.2 && Math.abs(p.x) > 2.6) p.z = -5.2;     // bay mouth
+      if (p.z > 5.2) p.x = Math.max(-0.68, Math.min(0.68, p.x));
+      else if (p.z >= -5.2) p.x = Math.max(-5.3, Math.min(5.3, p.x));
+      else p.x = Math.max(-6.3, Math.min(6.3, p.x));         // apron
+      const sdx = p.x, sdz = p.z + 0.2, sd = sdx * sdx + sdz * sdz; // don't clip the rig
+      if (sd < 0.30 && p.z >= -5.2 && p.z <= 5.2) {
+        const d = Math.sqrt(sd) || .01, k = 0.55 / d;
+        p.x = sdx * k; p.z = -0.2 + sdz * k;
+      }
+      const bob = (mv || st) ? Math.sin(this.bobT * 2) * .025 : Math.sin(t * .9) * .02;
+      this.cam.position.set(p.x, 1.5 + bob, p.z);
+      const cy = Math.cos(this.vPitch);
       this.look.set(p.x + Math.sin(this.vYaw) * cy * 5,
-                    p.y + Math.sin(this.vPitch) * 5,
+                    1.5 + Math.sin(this.vPitch) * 5,
                     p.z + Math.cos(this.vYaw) * cy * 5);
       this.cam.lookAt(this.look);
       // staring at your rig → it glows as the deploy button
