@@ -18,7 +18,7 @@ const Intro = {
   build() {
     const s = this.scene = new THREE.Scene();
     s.background = new THREE.Color(0x06090f);
-    s.fog = new THREE.Fog(0x06090f, 6, 22);
+    s.fog = new THREE.Fog(0x06090f, 7, 30);
 
     const armor = new THREE.MeshStandardMaterial({ color: 0x2a3542, roughness: .6, metalness: .35 });
     const joint = new THREE.MeshStandardMaterial({ color: 0x141a22, roughness: .95 });
@@ -40,7 +40,12 @@ const Intro = {
     fl.rotation.x = -Math.PI / 2; s.add(fl);
     const ce = new THREE.Mesh(new THREE.PlaneGeometry(12, 14), wall);
     ce.rotation.x = Math.PI / 2; ce.position.y = 4; s.add(ce);
-    B(12, 4, .2, wall, 0, 2, -6);                       // back wall
+    // back wall — wide hangar gap so the pad/base outside stays in view
+    B(3, 4, .2, wall, -4.5, 2, -6);
+    B(3, 4, .2, wall, 4.5, 2, -6);
+    B(6, .6, .2, wall, 0, 3.7, -6);
+    B(.1, .04, 6, glowC, -3, .015, -6);                 // threshold strips
+    B(.1, .04, 6, glowC, 3, .015, -6);
     B(.2, 4, 14, wall, -6, 2, 0);                       // side walls
     B(.2, 4, 14, wall, 6, 2, 0);
     // door wall — two panels + lintel leave a 1.8 x 2.7 doorway
@@ -74,6 +79,51 @@ const Intro = {
     const rim = new THREE.PointLight(0x4ad0ff, .5, 10); rim.position.set(-3, 2.2, -3); s.add(rim);
     this.outLight = new THREE.PointLight(0xfff0d0, 0, 14);
     this.outLight.position.set(0, 2, 7.5); s.add(this.outLight);
+
+    /* --- your base on the pad outside — lifts off and warps away --- */
+    const apron = new THREE.Mesh(new THREE.PlaneGeometry(14, 10), floor);
+    apron.rotation.x = -Math.PI / 2; apron.position.set(0, .012, -11); s.add(apron);
+    B(4.4, .12, 4.4, joint, 0, .06, -11.5);             // landing pad
+    B(.12, .02, 4.4, glowC, -2.1, .125, -11.5);         // pad edge lights
+    B(.12, .02, 4.4, glowC, 2.1, .125, -11.5);
+    const glowO = new THREE.MeshBasicMaterial({ color: 0xff8a2a });
+    const base = this.base = new THREE.Group(); base.position.set(0, .12, -11.5); s.add(base);
+    B(2.6, .5, 2.2, wall, 0, .37, 0, base);             // skirt
+    B(2.1, 1.1, 1.7, armor, 0, 1.15, 0, base);          // hull
+    B(1.5, .6, 1.2, armorD, 0, 1.95, 0, base);          // upper deck
+    B(.6, .35, .6, armor, 0, 2.35, 0, base);            // crown
+    B(.06, 1, .06, joint, .8, 2.4, 0, base);            // antenna
+    B(.1, .1, .1, glowC, .8, 2.95, 0, base);            // beacon
+    B(1.6, .06, .02, glowC, 0, 1.0, .86, base);         // window strips
+    B(1.6, .06, .02, glowC, 0, 1.35, .86, base);
+    for (const lx of [-1.05, 1.05]) for (const lz of [-.8, .8])
+      B(.2, .4, .2, joint, lx, .2, lz, base);           // landing legs
+    this.thrusters = new THREE.Group(); base.add(this.thrusters);
+    for (const tx of [-.8, 0, .8])
+      B(.34, .2, .34, glowO, tx, -.16, 0, this.thrusters);
+    this.thrusters.visible = false;
+    this.baseLight = new THREE.PointLight(0x6aa8ff, .8, 18);
+    this.baseLight.position.set(0, 3, -9.5); s.add(this.baseLight);
+    // warp-out streak — flat flash column where the base stood
+    this.warp = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 9),
+      new THREE.MeshBasicMaterial({ color: 0xaee4ff, transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    this.warp.position.set(0, 4.5, -11.5); this.warp.visible = false; s.add(this.warp);
+    // dust puff pool — sprites with a soft radial texture, reused per liftoff
+    const dc = document.createElement('canvas'); dc.width = dc.height = 64;
+    const dg = dc.getContext('2d');
+    const grad = dg.createRadialGradient(32, 32, 4, 32, 32, 30);
+    grad.addColorStop(0, 'rgba(190,170,140,.65)');
+    grad.addColorStop(1, 'rgba(190,170,140,0)');
+    dg.fillStyle = grad; dg.fillRect(0, 0, 64, 64);
+    const dustTex = new THREE.CanvasTexture(dc);
+    this.dust = [];
+    for (let i = 0; i < 16; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: dustTex, transparent: true, opacity: 0, depthWrite: false }));
+      sp.visible = false; s.add(sp);
+      this.dust.push({ m: sp, vel: new THREE.Vector3(), t: 0, life: 0 });
+    }
 
     /* --- the CMC suit on its rack — the real battle mesh, front (+z) out --- */
     const suit = new THREE.Group(); s.add(suit);
@@ -134,6 +184,10 @@ const Intro = {
     this.door.position.y = 1.35;
     this.doorGlow.material.opacity = .06;
     this.outLight.intensity = 0;
+    this.base.visible = true; this.base.position.y = .12;
+    this.thrusters.visible = false;
+    this.warp.visible = false; this.warp.material.opacity = 0;
+    for (const p of this.dust) { p.life = 0; p.m.visible = false; }
     this.cam.position.set(0, 1.55, 4.6);
     this.look.set(0, 1.3, .3);
     // overlay: bars + boot lines (revealed on schedule) + skip hint
@@ -161,6 +215,22 @@ const Intro = {
     f.style.opacity = 0; f.style.background = '#fff';
     const cb = this.cb; this.cb = null;
     if (cb) cb();
+  },
+
+  /* ring of dust sprites blasted out from under the pad */
+  kickDust() {
+    const n = this.dust.length;
+    for (let i = 0; i < n; i++) {
+      const p = this.dust[i], a = i / n * Math.PI * 2 + Math.random() * .4;
+      p.t = 0; p.life = 1.4 + Math.random() * .9;
+      p.m.visible = true;
+      p.m.position.set(this.base.position.x + Math.cos(a) * 1.7, .15,
+                       this.base.position.z + Math.sin(a) * 1.7);
+      p.vel.set(Math.cos(a) * (2.5 + Math.random() * 2.5),
+                .8 + Math.random() * 1.6,
+                Math.sin(a) * (2.5 + Math.random() * 2.5));
+      p.m.material.opacity = .5;
+    }
   },
 
   update(dt) {
@@ -194,26 +264,73 @@ const Intro = {
       if (t - dt < 4.4 && t >= 4.4) Audio2.noise(.2, .15, 900, 1); // pneumatic seal
       const v = document.getElementById('intro-visor');
       v.style.opacity = Math.min(1, (t - 4.0) / .5);
-    } else if (t < 9.7) {                            // — inside: suit boots (5s) —
+    } else if (t < 10.4) {                           // — inside: boot + base departs —
       cam.position.set(0, 1.3 + Math.sin(t * 1.4) * .006, .02);    // idle breath sway
-      this.look.set(0, 1.5, 8);
       if (t - dt < 4.7) Audio2.tone(120, .3, 'sine', .1, 60);      // suit hum on
-      if (t - dt < 8.9 && t >= 8.9) Audio2.say('Suit sealed. All systems nominal.', { rate: .95 });
-    } else if (t < 11.3) {                           // — barracks door opens —
-      const k = _ez((t - 9.7) / 1.6);
+      if (t - dt < 5.0 && t >= 5.0) Audio2.say('Suit sealed. All systems nominal.', { rate: .95 });
+      // look front → turn back to watch the pad → back to the door
+      let ly = 1.5, lz = 8;
+      if (t >= 5.4 && t < 6.1) lz = _lz(8, -12, _ez((t - 5.4) / .7));
+      else if (t >= 6.1 && t < 9.9) { lz = -12; ly = 1.5 + this.base.position.y * .32; }
+      else if (t >= 9.9) {
+        const k = _ez((t - 9.9) / .5);
+        lz = _lz(-12, 8, k); ly = _lz(1.5 + this.base.position.y * .32, 1.5, k);
+      }
+      this.look.set(0, ly, lz);
+      // liftoff — thrusters flare, dust blasts out, the base climbs
+      if (t - dt < 6.6 && t >= 6.6) {
+        this.thrusters.visible = true;
+        this.kickDust();
+        Audio2.noise(1.4, .3, 180, .7);
+        Audio2.tone(48, 1.1, 'sawtooth', .22, 30);
+        Audio2.say('Command center lifting off.', { rate: .95 });
+      }
+      if (t >= 6.6 && t < 9.4) {
+        this.base.position.y = .12 + _ez((t - 6.6) / 2.8) * 13;
+        this.thrusters.children.forEach((c, i) =>
+          c.scale.y = 1 + Math.sin(t * 30 + i * 2) * .3);
+      }
+      // warp-out — flash column + screen pulse, base is gone
+      if (t - dt < 9.4 && t >= 9.4) {
+        this.base.visible = false;
+        this.warp.visible = true;
+        Audio2.noise(.3, .3, 2400, .6);
+        Audio2.tone(1500, .35, 'sawtooth', .14, 140);
+      }
+      if (t >= 9.4) {
+        const k = (t - 9.4) / .8;
+        this.warp.material.opacity = Math.max(0, .95 - k * 1.2);
+        this.warp.scale.x = .3 + k * 7;
+        fade.style.background = '#fff';
+        fade.style.opacity = Math.max(0, .8 - k * 1.1);
+      }
+    } else if (t < 12.0) {                           // — barracks door opens —
+      const k = _ez((t - 10.4) / 1.6);
       this.door.position.y = _lz(1.35, 4.05, k);
       this.doorGlow.material.opacity = _lz(.06, 1, k);
       this.outLight.intensity = _lz(0, 2.2, k);
-      if (t - dt < 9.7) Audio2.noise(.8, .2, 300, .7);             // servo rumble
-    } else if (t < 13.7) {                           // — walk out the door —
-      const k = _ez((t - 11.3) / 2.4);
+      if (t - dt < 10.4) Audio2.noise(.8, .2, 300, .7);            // servo rumble
+    } else if (t < 14.4) {                           // — walk out the door —
+      const k = _ez((t - 12.0) / 2.4);
       cam.position.set(0, 1.3, _lz(.02, 7.6, k));
       this.look.set(0, 1.5, 12);
-      if (t > 12.5) {                                // white-out into the lobby
+      if (t > 13.2) {                                // white-out into the lobby
         fade.style.background = '#fff';
-        fade.style.opacity = Math.min(1, (t - 12.5) / 1.1);
+        fade.style.opacity = Math.min(1, (t - 13.2) / 1.1);
       }
     } else this.stop();
+
+    // dust always decays — runs regardless of phase
+    for (const p of this.dust) {
+      if (p.life <= 0) continue;
+      p.t += dt;
+      if (p.t >= p.life) { p.life = 0; p.m.visible = false; continue; }
+      p.m.position.addScaledVector(p.vel, dt);
+      p.vel.multiplyScalar(1 - dt * 1.2);
+      const k = p.t / p.life;
+      p.m.scale.setScalar(.9 + k * 3.6);
+      p.m.material.opacity = .5 * (1 - k);
+    }
 
     cam.lookAt(this.look);
   },

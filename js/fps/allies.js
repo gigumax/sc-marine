@@ -28,10 +28,10 @@ function aiLeaders() { return Allies.list.filter(a => a.leader && !a.dead); }
 /* how many AI leaders should be on the field right now */
 function leaderCap() { return SQUAD_LEADERS - (Game.leader ? 1 : 0); }
 
-/* who's calling the shots — a random marine leads until you're promoted */
+/* who's calling the shots — an AI co-leader always stays point man; promote
+   to the second star and you fall in behind them inside the formation */
 function squadLeader() {
-  if (Game.leader) return null;                          // you anchor when you hold a star
-  return aiLeaders()[0] || null;                         // first co-leader anchors the wedge
+  return aiLeaders()[0] || null;
 }
 
 /* ---------- squad comms ---------- */
@@ -723,8 +723,11 @@ function allyShoot(a) {
 function updateAllies(dt) {
   const pp = Player.pos;
   const lead = squadLeader();
-  const anchor = lead ? lead.pos : pp;             // formation anchor: leader, else you
-  const anchorYaw = lead ? lead.yaw : Player.yaw;
+  // co-lead (you hold the second star): formation wraps you — AI leader
+  // still spearheads the push and you follow in the middle of the team
+  const coLead = Game.leader && lead;
+  const anchor = coLead || !lead ? pp : lead.pos;  // leader anchors only when you're not leading
+  const anchorYaw = coLead || !lead ? Player.yaw : lead.yaw;
   const falling = Allies.cmd === 'fall';           // FALL BACK order active
   // PROTECT THE LT — you're bleeding out, squad drops everything and closes on you
   const protecting = !Player.dead && Player.hp < 30;
@@ -839,11 +842,13 @@ function updateAllies(dt) {
         a.walkT += dt * sp * 1.5;
       }
     } else {
-      // follower: wedge slot behind the anchor (leader → later you)
+      // follower: wedge slot behind the anchor — in co-lead the squad wraps
+      // you instead: every other marine mirrors to the front rank
       const tighten = falling ? 0.45 : 1;            // FALL BACK compacts the wedge
+      const szl = coLead && (a.idx & 1) ? -a.slot.z : a.slot.z;
       const sin = Math.sin(anchorYaw), cos = Math.cos(anchorYaw);
-      const sx = anchor.x + (a.slot.x * cos + a.slot.z * sin) * tighten;
-      const sz = anchor.z + (-a.slot.x * sin + a.slot.z * cos) * tighten;
+      const sx = anchor.x + (a.slot.x * cos + szl * sin) * tighten;
+      const sz = anchor.z + (-a.slot.x * sin + szl * cos) * tighten;
       sdx = sx - a.pos.x; sdz = sz - a.pos.z;
       const slotDist = Math.hypot(sdx, sdz);
 

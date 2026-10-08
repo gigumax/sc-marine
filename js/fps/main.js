@@ -46,6 +46,29 @@ const UI = {
     clearTimeout(this._vt);
     this._vt = setTimeout(() => this.flashOp = 0, 130);
   },
+  // point-blank kill — ichor splatters the side of the visor facing the bug
+  bloodSplat(sx) {
+    const hud = $id('hud');
+    const W = innerWidth, H = innerHeight;
+    for (let i = 0, n = 2 + (Math.random() * 2 | 0); i < n; i++) {
+      const b = document.createElement('div');
+      b.className = 'splat';
+      const sz = 26 + Math.random() * 64;
+      b.style.width = b.style.height = sz + 'px';
+      b.style.left = (W * 0.5 + sx * W * 0.34 + (Math.random() - .5) * sz * 1.6 - sz / 2) + 'px';
+      b.style.top = (H * (0.32 + Math.random() * 0.42) - sz / 2) + 'px';
+      b.style.borderRadius =
+        `${40 + Math.random() * 30}% ${40 + Math.random() * 30}% ${40 + Math.random() * 30}% ${40 + Math.random() * 30}% / ` +
+        `${40 + Math.random() * 30}% ${40 + Math.random() * 30}% ${40 + Math.random() * 30}% ${40 + Math.random() * 30}%`;
+      b.style.transform = `rotate(${Math.random() * 360}deg)`;
+      hud.appendChild(b);
+      setTimeout(() => b.classList.add('fade'), 1200 + Math.random() * 900);
+      setTimeout(() => b.remove(), 4400);
+    }
+    // cap the mess
+    const all = hud.querySelectorAll('.splat');
+    for (let i = 0; i < all.length - 18; i++) all[i].remove();
+  },
   updateHud() {
     const hpFrac = Player.hp / Player.maxHp;
     const fill = $id('hp-fill');

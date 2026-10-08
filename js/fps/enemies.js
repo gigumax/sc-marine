@@ -8,7 +8,6 @@ const Enemies = {
   kills: 0,
   gibs: [],
   pickups: [],
-  spits: [],                     // roach acid projectiles
 };
 
 /* ---------- zerg senses ---------- */
@@ -32,7 +31,7 @@ function zLos(ex, ez, eh, tx, tz, th) {
 function zCanSee(e, tx, ty, tz) {
   const m = e.mesh.position;
   const d = Math.hypot(tx - m.x, tz - m.z);
-  return d < Z_SMELL || (d < Z_SIGHT && zLos(m.x, m.z, e.roach ? 1.2 : 0.85, tx, tz, ty));
+  return d < Z_SMELL || (d < Z_SIGHT && zLos(m.x, m.z, e.hunter ? 1.0 : 0.85, tx, tz, ty));
 }
 
 /* gunfire gives you away — nearby zerg stalk the shot origin for a few sec */
@@ -275,163 +274,17 @@ function buildZerglingMesh(scale, hunter) {
   return g;
 }
 
-/* ---------- roach model — squat siege unit, arched blade-legs ---------- */
-let _roachMats = null;
-function roachMats() {
-  if (_roachMats) return _roachMats;
-  _roachMats = {
-    chitin: new THREE.MeshStandardMaterial({ color: 0x241a10, roughness: 0.75, metalness: 0.15 }),
-    shell:  new THREE.MeshStandardMaterial({ color: 0x38270f, roughness: 0.55, metalness: 0.25 }),
-    tip:    new THREE.MeshStandardMaterial({ color: 0x6b5230, roughness: 0.8 }),
-    glow:   new THREE.MeshStandardMaterial({ color: 0x39ff6a, emissive: 0x1a8a3a,
-              emissiveIntensity: 1.4, roughness: 0.4 }),
-    vent:   new THREE.MeshBasicMaterial({ color: 0x59ff7a }),
-  };
-  return _roachMats;
-}
-
-function buildRoachMesh() {
-  const M = roachMats();
-  const g = new THREE.Group();
-
-  // low armored abdomen — wide, flattened, tapered rear
-  const body = new THREE.Mesh(
-    zg('r_body', () => new THREE.SphereGeometry(0.8, 14, 10)), M.chitin);
-  body.scale.set(1.15, 0.72, 1.5);
-  body.position.set(0, 0.82, -0.15);
-  body.userData.part = 'body';
-  g.add(body);
-
-  // segmented tail tapering behind
-  for (let i = 0; i < 2; i++) {
-    const seg = new THREE.Mesh(
-      zg('r_tail' + i, () => new THREE.SphereGeometry(0.5 - i * 0.12, 10, 7)), M.shell);
-    seg.scale.set(1.4 - i * 0.25, 0.5, 0.8);
-    seg.position.set(0, 0.78 - i * 0.08, -1.0 - i * 0.5);
-    g.add(seg);
-  }
-
-  // overlapping carapace plates
-  for (const [z, w] of [[0.45, 1.0], [0.0, 1.15], [-0.5, 1.05]]) {
-    const plate = new THREE.Mesh(
-      zg('r_plate', () => new THREE.SphereGeometry(0.62, 12, 7)), M.shell);
-    plate.scale.set(w, 0.42, 0.62);
-    plate.position.set(0, 1.12, z);
-    g.add(plate);
-  }
-
-  // dorsal ridge spikes — tallest amidships, fading aft
-  const ridgeZ = [0.55, 0.2, -0.15, -0.5, -0.8];
-  for (let i = 0; i < ridgeZ.length; i++) {
-    const sp = new THREE.Mesh(
-      zg('r_spike', () => new THREE.ConeGeometry(0.09, 0.5, 5)), M.shell);
-    const h = 1 - i * 0.16;
-    sp.scale.set(1, h, 0.8);
-    sp.position.set(0, 1.32 - i * 0.04, ridgeZ[i]);
-    sp.rotation.x = -0.35 - i * 0.12;
-    g.add(sp);
-  }
-
-  // acid sacs — green glow bulging under the flank plates
-  for (const s of [-1, 1]) {
-    const sac = new THREE.Mesh(
-      zg('r_sac', () => new THREE.SphereGeometry(0.26, 8, 6)), M.glow);
-    sac.scale.set(1, 0.8, 1.3);
-    sac.position.set(s * 0.62, 0.92, -0.35);
-    g.add(sac);
-  }
-
-  // head — low wedge tucked under the shell, part='head' for crit hits
-  const head = new THREE.Mesh(
-    zg('r_head', () => new THREE.SphereGeometry(0.34, 10, 8)), M.chitin);
-  head.scale.set(1, 0.62, 1.25);
-  head.position.set(0, 0.52, 1.02);
-  head.userData.part = 'head';
-  g.add(head);
-  // beak point
-  const beak = new THREE.Mesh(
-    zg('r_beak', () => new THREE.ConeGeometry(0.16, 0.5, 6)), M.shell);
-  beak.rotation.x = Math.PI / 2 + 0.25;
-  beak.position.set(0, 0.42, 1.3);
-  beak.userData.part = 'head';
-  g.add(beak);
-  for (const s of [-1, 1]) {
-    // curved side mandibles
-    const mand = new THREE.Mesh(
-      zg('r_mand', () => new THREE.ConeGeometry(0.08, 0.55, 5)), M.tip);
-    mand.rotation.x = Math.PI / 2 - 0.35;
-    mand.rotation.z = -s * 0.55;
-    mand.position.set(s * 0.22, 0.45, 1.2);
-    mand.userData.part = 'head';
-    g.add(mand);
-    // small glowing eyes
-    const eye = new THREE.Mesh(
-      zg('r_eye', () => new THREE.SphereGeometry(0.045, 6, 5)), M.vent);
-    eye.position.set(s * 0.19, 0.6, 1.22);
-    g.add(eye);
-  }
-
-  // green vent cluster under the jaw — the roach's glow spots
-  for (const [x, y, z] of [[-0.12, 0.32, 1.14], [0.12, 0.32, 1.14], [0, 0.28, 1.2], [-0.06, 0.22, 1.02], [0.06, 0.22, 1.02]]) {
-    const v = new THREE.Mesh(
-      zg('r_vent', () => new THREE.SphereGeometry(0.055, 6, 5)), M.vent);
-    v.position.set(x, y, z);
-    g.add(v);
-  }
-
-  // six arched legs — thigh kicks up-and-out, shin drops to a point
-  const legs = [];
-  for (const s of [-1, 1]) for (const f of [0.62, 0.1, -0.5]) {
-    const leg = new THREE.Group();
-    const thigh = new THREE.Mesh(
-      zg('r_thigh', () => {
-        const b = new THREE.BoxGeometry(0.13, 0.62, 0.16);
-        b.translate(0, 0.31, 0);                     // pivot at hip
-        return b;
-      }), M.chitin);
-    thigh.rotation.z = s * 1.0;                      // arc outward
-    leg.add(thigh);
-    const shin = new THREE.Mesh(
-      zg('r_shin', () => {
-        const c = new THREE.ConeGeometry(0.075, 0.95, 5);
-        c.rotateX(Math.PI);                          // point down
-        c.translate(0, -0.45, 0);
-        return c;
-      }), M.tip);
-    shin.position.set(s * 0.55, 0.56, 0);
-    shin.rotation.z = s * 0.25;
-    leg.add(shin);
-    leg.position.set(s * 0.62, 0.78, f);
-    g.add(leg);
-    legs.push(leg);
-  }
-
-  // forward scythe-blades — the two big curved claws
-  for (const s of [-1, 1]) {
-    const blade = buildHorn(1.5, 0.14, 2.1, M.shell);
-    blade.position.set(s * 0.42, 0.62, 0.9);
-    blade.rotation.x = 1.15;                         // arc forward over the beak
-    blade.rotation.z = -s * 0.3;
-    g.add(blade);
-  }
-
-  g.userData.legs = legs;
-  return g;
-}
-
 /* ---------- enemy ---------- */
 function spawnEnemy(type, pos) {
-  const roach = type === 'roach';
   const hunter = type === 'hunter';
-  const mesh = roach ? buildRoachMesh() : buildZerglingMesh(hunter ? 1.5 : 1, hunter);
+  const mesh = buildZerglingMesh(hunter ? 1.5 : 1, hunter);
   mesh.position.copy(pos);
   const e = {
-    mesh, hunter, roach,
-    hp: roach ? 160 : hunter ? 120 : 34,
-    speed: (roach ? 3.0 : hunter ? 4.2 : 11.2) * (0.9 + Math.random() * 0.25),
-    radius: roach ? 1.2 : hunter ? 1.05 : 0.7,
+    mesh, hunter,
+    hp: hunter ? 240 : 68,                 // swarm hardened — lings soak two mags
+    speed: (hunter ? 4.2 : 11.2) * (0.9 + Math.random() * 0.25),
+    radius: hunter ? 1.05 : 0.7,
     attackCd: 0,
-    spitCd: 1.5 + Math.random() * 1.5,
     lungeT: 0,
     lungeFrom: null, lungeTo: null,
     dead: false, deathT: 0,
@@ -494,7 +347,8 @@ function damageSpawner(s, dmg, from) {
     for (const s of World.spawners) {
       if (!s.dead) {
         for (let i = 0; i < 8; i++) {
-          spawnEnemy('roach', s.pos.clone().add(new THREE.Vector3(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).multiplyScalar(1.5)));
+          spawnEnemy(i < 2 ? 'hunter' : 'zergling',
+            s.pos.clone().add(new THREE.Vector3(Math.random() * 2 - 1, 0, Math.random() * 2 - 1).multiplyScalar(1.5)));
         }
       }
     }
@@ -532,68 +386,17 @@ function hiveDownFX(s) {
   UI.waveBanner(left ? `SPAWN-HIVE DESTROYED — ${left} LEFT` : 'ALL HIVES DOWN — CLEAR THE SWARM');
 }
 
-/* ---------- roach acid spit ---------- */
-const _spitGeo = new THREE.SphereGeometry(0.17, 8, 6);
-const _spitMat = new THREE.MeshBasicMaterial({ color: 0x8aff30 });
-function spitAcid(e) {
-  const m = new THREE.Mesh(_spitGeo, _spitMat);
-  const from = e.mesh.position.clone(); from.y = 1.3;
-  m.position.copy(from);
-  // aim at whatever the roach is hunting — player or marine
-  const t = (e.tgtAlly && !e.tgtAlly.dead) ? e.tgtAlly.pos : Player.pos;
-  const target = new THREE.Vector3(t.x, t.y + 1.3, t.z);
-  const vel = target.sub(from).normalize().multiplyScalar(17);
-  Enemies.scene.add(m);
-  Enemies.spits.push({ m, vel, t: 0 });
-  if (Net.on && Net.isHost)
-    Net.send('spit', { x: +from.x.toFixed(2), y: +from.y.toFixed(2), z: +from.z.toFixed(2),
-      vx: +vel.x.toFixed(2), vy: +vel.y.toFixed(2), vz: +vel.z.toFixed(2) });
-  Audio2.spit(e.mesh.position.distanceTo(Player.pos));
-}
-function updateSpits(dt, onPlayerHit) {
-  for (const s of Enemies.spits) {
-    s.t += dt;
-    s.vel.y -= 2.5 * dt;                          // slight arc
-    s.m.position.addScaledVector(s.vel, dt);
-    // acid can splatter the player or any living marine
-    const check = (vx, vz, vy) =>
-      Math.hypot(s.m.position.x - vx, s.m.position.z - vz) < 0.9 &&
-      Math.abs(s.m.position.y - vy) < 1.2;
-    if (check(Player.pos.x, Player.pos.z, Player.pos.y + 1.3)) {
-      onPlayerHit(14, s.m.position);
-      s.done = true;
-    } else {
-      for (const a of Allies.list) {
-        if (!a.dead && check(a.pos.x, a.pos.z, 1.3)) {
-          damageAlly(a, 14, s.m.position);
-          s.done = true;
-          break;
-        }
-      }
-    }
-    if (s.m.position.y < 0 || s.t > 3.5) {
-      // green splash
-      for (let i = 0; i < 5; i++) {
-        const p = new THREE.Mesh(_bloodGeo, new THREE.MeshBasicMaterial({ color: 0x6ac020 }));
-        p.position.copy(s.m.position);
-        Enemies.scene.add(p);
-        Enemies.gibs.push({
-          m: p, ttl: 0.35, t: 0,
-          vx: (Math.random() - .5) * 3, vy: Math.random() * 2, vz: (Math.random() - .5) * 3, rs: 0,
-        });
-      }
-      s.done = true;
-    }
-    if (s.done) Enemies.scene.remove(s.m);
-  }
-  Enemies.spits = Enemies.spits.filter(s => !s.done);
-}
-
 function damageEnemy(e, dmg, headshot, byPlayer, creditId) {
   if (e.dead) return;
   noiseAt(e.mesh.position.x, e.mesh.position.z, 26);   // the pack hears a kill
   e.hp -= dmg;
   bloodBurst(e.mesh.position.clone().add(new THREE.Vector3(0, 0.6, 0)), headshot ? 10 : 6);
+  // up close your visor catches the spray — splat whichever side the bug is on
+  if (byPlayer && e.mesh.position.distanceTo(Player.pos) < 8) {
+    _v1.copy(e.mesh.position); _v1.y = 1.0;
+    _v1.project(Player.cam);
+    if (_v1.z < 1) UI.bloodSplat(Math.sign(_v1.x || 0.01) * Math.min(1, 0.35 + Math.abs(_v1.x)));
+  }
   if (e.hp <= 0) {
     e.dead = true;
     e.deathT = 0;
@@ -601,7 +404,7 @@ function damageEnemy(e, dmg, headshot, byPlayer, creditId) {
     if (Net.on)                          // authoritative kill — everyone gets the gib
       Net.send('ekill', { id: e.netId, by: creditId || (byPlayer ? Net.id : null), k: Enemies.kills,
         x: +e.mesh.position.x.toFixed(1), z: +e.mesh.position.z.toFixed(1) });
-    if (byPlayer && !e.roach) {          // lings & hunters count toward command
+    if (byPlayer) {                      // kills count toward command
       Player.kills++;
       if (!Game.leader && !Game.online && Player.kills >= PROMOTE_KILLS) promoteToLeader();
     }
@@ -737,7 +540,7 @@ function updateCarcass(e, m, dt) {
     m.position.y = 0.02;
     setCarcassGray(m);
     // field can't become a carpet — cull the oldest bodies past the cap
-    const corpses = Enemies.list.filter(x => x.dead && !x.roach);
+    const corpses = Enemies.list.filter(x => x.dead);
     if (corpses.length > CORPSE_CAP) {
       Enemies.scene.remove(corpses[0].mesh);
       corpses[0].gone = true;
@@ -849,14 +652,7 @@ function updateEnemies(dt, onPlayerHit) {
     const m = e.mesh;
 
     if (e.dead) {
-      if (e.roach) {                                    // big bug — old keel-over + sink
-        e.deathT += dt;
-        m.rotation.x = Math.min(Math.PI / 2, e.deathT * 6);
-        m.position.y = -e.deathT * 0.5;
-        if (e.deathT > 1.1) { Enemies.scene.remove(m); e.gone = true; }
-      } else {
-        updateCarcass(e, m, dt);                        // lings/hunters — side flop, gray, kickable
-      }
+      updateCarcass(e, m, dt);                          // side flop, gray, kickable
       continue;
     }
 
@@ -924,7 +720,7 @@ function updateEnemies(dt, onPlayerHit) {
         m.position.y = 0;
         e.lungeT = 0;
         meleeHit(e, e.hunter ? 18 : 9);
-        e.attackCd = e.hunter ? 1.4 : 1.0;
+        e.attackCd = 0.5;               // lings bite fast — half-second swing
       }
       continue;
     }
@@ -947,26 +743,7 @@ function updateEnemies(dt, onPlayerHit) {
     let mx = dx / sd, mz = dz / sd;
     // combat move at full clip; stalk heard shots; idle drift is slow
     let sp = e.speed * (engaged ? 1 : (tp === e.alertPos ? 0.8 : 0.38));
-    if (engaged && e.roach) {
-      // roach: hold at range, spit acid, back off if player closes in, bite if cornered
-      e.spitCd -= dt;
-      if (dist < 2.8 && e.attackCd <= 0) {
-        e.attackCd = 1.5;
-        meleeHit(e, 16);
-        Audio2.screech(dist);
-      }
-      if (e.spitCd <= 0 && dist > 4 && dist < 30) {
-        spitAcid(e);
-        e.spitCd = 2.4 + Math.random() * 1.2;
-      }
-      if (dist < 8) { mx = -mx; mz = -mz; sp *= 0.7; }          // back away
-      else if (dist < 14) { const sx = -mz, sz = mx; mx = sx; mz = sz; sp *= 0.5; } // strafe
-      else {
-        const wob = Math.sin(e.weave) * 0.4;
-        const px = -mz * wob, pz = mx * wob;
-        mx += px; mz += pz;
-      }
-    } else if (engaged) {
+    if (engaged) {
       // zergling/hunter: sinus weave chase
       const wob = Math.sin(e.weave) * Math.min(1, dist / 12) * 0.7;
       const px = -mz * wob, pz = mx * wob;
@@ -1027,7 +804,6 @@ const Waves = {
 
   pickType() {
     const r = Math.random();
-    if (this.wave >= 2 && r < 0.14 + this.wave * 0.012) return 'roach';
     if (this.wave >= 4 && r < 0.30) return 'hunter';
     return 'zergling';
   },

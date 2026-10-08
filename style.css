@@ -146,6 +146,13 @@ html,body { width:100%; height:100%; background:#000; overflow:hidden;
   font-size:11px; color:#5c7ea3; }
 #pad-status.connected { color:#7dffa0; }
 
+/* ichor splatters on the visor — appended to #hud by UI.bloodSplat */
+.splat { position:absolute; pointer-events:none; opacity:.85;
+  background:radial-gradient(circle at 40% 35%, rgba(190,26,14,.95), rgba(110,8,4,.9) 55%, rgba(60,3,2,.7) 78%, transparent 80%);
+  filter:drop-shadow(0 0 6px rgba(140,10,5,.5));
+  transition:opacity 2.6s ease-out; }
+.splat.fade { opacity:0; }
+
 /* ==================== overlays ==================== */
 .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
   background:rgba(3,7,13,.85); z-index:20; backdrop-filter:blur(4px); }

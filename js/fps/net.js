@@ -33,7 +33,7 @@ const Net = {
   name: 'MARINE-' + Math.random().toString(36).slice(2, 5).toUpperCase(),
   accent: ACCENTS[Math.floor(Math.random() * ACCENTS.length)],
   session: -1, members: {}, peers: {},
-  eById: {}, pkById: {}, spitFx: [], misFx: [],
+  eById: {}, pkById: {}, misFx: [],
   chan: null, db: null, aborted: false,
   roomRef: null, membersRef: null, myRef: null,
   evRef: null, stateRef: null, snapRef: null,
@@ -233,7 +233,6 @@ const Net = {
           case 'pheal':   if (p.to === this.id && !Player.dead) Player.heal(p.amt || 6); break;
           case 'ekill':   this.onEnemyKill(p); break;
           case 'pk':      if (this.isHost) this.hostPickup(p); break;
-          case 'spit':    if (!this.isHost) this.fxSpit(p); break;
           case 'shot':    this.onShot(p); break;
           case 'comm':    Audio2.radio(); squadChat(p.n, p.t, p.c); break;
           case 'win':     if (Game.running) Game.victory(); break;
@@ -400,19 +399,11 @@ const Net = {
     const e = this.eById[m.id];
     if (e && !e.goneFx) { e.goneFx = true; gibBurst(new THREE.Vector3(m.x, 0.4, m.z), e.hunter); }
     Enemies.kills = m.k;
-    if (m.by === this.id && (!e || !e.roach)) {
+    if (m.by === this.id) {
       Player.kills++;
       UI.hitmarker(true);
       if (!Game.leader && Player.kills >= PROMOTE_KILLS) promoteToLeader();
     }
-  },
-
-  fxSpit(s) {
-    const m = new THREE.Mesh(_spitGeo, _spitMat);
-    m.position.set(s.x, s.y, s.z);
-    Enemies.scene.add(m);
-    this.spitFx.push({ m, vel: new THREE.Vector3(s.vx, s.vy, s.vz), t: 0 });
-    Audio2.spit(m.position.distanceTo(Player.pos));
   },
 
   /* ---------- client-side snapshot apply ---------- */
@@ -459,15 +450,15 @@ const Net = {
   },
 
   spawnReplica(id, ty) {
-    const roach = ty === 2, hunter = ty === 1;
-    const mesh = roach ? buildRoachMesh() : buildZerglingMesh(hunter ? 1.5 : 1, hunter);
+    const hunter = ty >= 1;                        // stale ty=2 roach rows → hunter
+    const mesh = buildZerglingMesh(hunter ? 1.5 : 1, hunter);
     const e = {
-      mesh, hunter, roach, netId: id,
+      mesh, hunter, netId: id,
       // real stats so a migrated host can seamlessly take over the sim
-      hp: roach ? 160 : hunter ? 120 : 34,
-      speed: roach ? 3.0 : hunter ? 4.2 : 5.6,
-      radius: roach ? 1.2 : hunter ? 1.05 : 0.7,
-      attackCd: 0, spitCd: 2, lungeT: 0, lungeFrom: null, lungeTo: null,
+      hp: hunter ? 240 : 68,
+      speed: hunter ? 4.2 : 5.6,
+      radius: hunter ? 1.05 : 0.7,
+      attackCd: 0, lungeT: 0, lungeFrom: null, lungeTo: null,
       dead: false, deathT: 0, weave: 0, animT: 0, screechT: 2,
       netTo: new THREE.Vector3(), netRy: 0, replica: true,
     };
@@ -521,16 +512,6 @@ const Net = {
       }).catch(() => {});
     }
     this.tickPeers(dt);
-    // replica spit projectiles fly + can hurt ME
-    for (const s of this.spitFx) {
-      s.t += dt;
-      s.vel.y -= 9 * dt;
-      s.m.position.addScaledVector(s.vel, dt);
-      const d = s.m.position.distanceTo(Player.pos.clone().setY(Player.pos.y + 1.3));
-      if (d < 0.9 && !Player.dead) { damagePlayer(14, s.m.position); Enemies.scene.remove(s.m); s.done = true; }
-      if (s.t > 4 || s.m.position.y < 0) { Enemies.scene.remove(s.m); s.done = true; }
-    }
-    this.spitFx = this.spitFx.filter(s => !s.done);
     // remote rockets — fly to their target point then detonate
     for (const ms of this.misFx) {
       const step = 26 * dt;
@@ -563,7 +544,7 @@ const Net = {
     const e = [];
     for (const en of Enemies.list) {
       if (en.gone) continue;
-      e.push(en.netId, en.roach ? 2 : en.hunter ? 1 : 0,
+      e.push(en.netId, en.hunter ? 1 : 0,
         +en.mesh.position.x.toFixed(2), +en.mesh.position.y.toFixed(2),
         +en.mesh.position.z.toFixed(2), +en.mesh.rotation.y.toFixed(2));
     }
@@ -583,18 +564,11 @@ const Net = {
     for (const id in this.eById) {
       const e = this.eById[id], m = e.mesh;
       if (e.dead) {
-        if (e.roach) {                            // big bugs still sink away
-          e.deathT += dt;
-          m.rotation.x = Math.min(Math.PI / 2, e.deathT * 6);
-          m.position.y = -e.deathT * 0.5;
-          if (e.deathT > 1.1) { Enemies.scene.remove(m); e.gone = true; delete this.eById[id]; }
-        } else {
-          updateCarcass(e, m, dt);                // same flop/gray/kick as host-side
-          if (e.gone) { delete this.eById[id]; continue; }
-          if (e.netTo) {                          // slide to net pos — but not y: carcasses sink
-            m.position.x += (e.netTo.x - m.position.x) * Math.min(1, dt * 8);
-            m.position.z += (e.netTo.z - m.position.z) * Math.min(1, dt * 8);
-          }
+        updateCarcass(e, m, dt);                  // same flop/gray/kick as host-side
+        if (e.gone) { delete this.eById[id]; continue; }
+        if (e.netTo) {                            // slide to net pos — but not y: carcasses sink
+          m.position.x += (e.netTo.x - m.position.x) * Math.min(1, dt * 8);
+          m.position.z += (e.netTo.z - m.position.z) * Math.min(1, dt * 8);
         }
         continue;
       }
@@ -618,8 +592,6 @@ const Net = {
     for (const id in this.peers) Enemies.scene.remove(this.peers[id].mesh);
     this.peers = {};
     this.eById = {}; this.pkById = {};
-    this.spitFx.forEach(s => Enemies.scene.remove(s.m));
-    this.spitFx = [];
     this.misFx.forEach(s => Enemies.scene.remove(s.m));
     this.misFx = [];
     this.lastSnap = null;
