@@ -12,7 +12,7 @@ const Player = {
   healPwr: 0,                                 // medic beam hp per pulse
   energy: 100, energyMax: 100,                // medic capacitor — blue cubes refill it
   unit: 'marine',                         // 'marine' | 'marauder'
-  fireRate: 1 / 9, dmg: 16, hsDmg: 34,
+  fireRate: 1 / 9, dmg: 2, hsDmg: 34,
   reloading: false, reloadT: 0,
   fireT: 0, firing: false, aiming: false, ads: false,
   firingMouse: false, aimingMouse: false,
@@ -722,7 +722,7 @@ function updatePlayer(dt) {
 
 /* ---------- loadout — marine rifleman vs marauder grenadier ---------- */
 const UNITS = {
-  marine:   { hp: 100, mag: 32, reserve: 320, rate: 1 / 9, dmg: 16, hs: 34, label: 'C-14 GAUSS',         flash: 0.35 },
+  marine:   { hp: 100, mag: 32, reserve: 320, rate: 1 / 9, dmg: 2,  hs: 34, label: 'C-14 GAUSS',         flash: 0.35 },
   marauder: { hp: 300, mag: 8,  reserve: 96,  rate: 0.53,  dmg: 80, hs: 80, label: 'PUNISHER GRENADES',  flash: 0.6  },
   medic:    { hp: 100, mag: 40, reserve: 0,   rate: 1 / 6, dmg: 0,  hs: 0,  heal: 8, nrg: 100, label: 'NANO BEAM',    flash: 0.35 },
 };

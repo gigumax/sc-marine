@@ -194,32 +194,79 @@ function buildWorld(scene) {
     const ringMat = new THREE.MeshStandardMaterial({
       color: 0x4a1a70, emissive: 0x8a2ae0, emissiveIntensity: 1.1, roughness: 0.4,
     });
-    const moundMat = new THREE.MeshStandardMaterial({ color: 0x3a1a50, roughness: 1 });
+    const moundMat = new THREE.MeshStandardMaterial({ color: 0x54263e, roughness: 0.85 });
+    const boneMat = new THREE.MeshStandardMaterial({ color: 0xa8946a, roughness: 0.55 });
     const sacMat = new THREE.MeshStandardMaterial({
-      color: 0x6a2aa0, emissive: 0x8a2ae0, emissiveIntensity: 0.8, roughness: 0.5,
+      color: 0x8a1a68, emissive: 0xff2a9a, emissiveIntensity: 0.85, roughness: 0.4,
     });
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.5, 8, 24), ringMat);
-    ring.position.y = 0.4; ring.rotation.x = Math.PI / 2;
-    gate.add(ring);
-    const mound = new THREE.Mesh(new THREE.SphereGeometry(2.6, 12, 8), moundMat);
-    mound.scale.y = 0.4; mound.position.y = 0;
+    // fleshy skirt + main body — lobed meat, not a clean dome
+    const mound = new THREE.Mesh(new THREE.SphereGeometry(3.6, 12, 8), moundMat);
+    mound.scale.y = 0.45; mound.position.y = 0.1;
     gate.add(mound);
-    // egg sacs bulging from the mound — the weakpoint look
-    for (let i = 0; i < 5; i++) {
-      const sac = new THREE.Mesh(new THREE.SphereGeometry(0.5 + Math.random() * 0.3, 8, 6), sacMat);
-      sac.position.set((Math.random() - .5) * 3, 0.6 + Math.random() * 0.5, (Math.random() - .5) * 3);
+    const body = new THREE.Mesh(new THREE.SphereGeometry(2.5, 12, 9), moundMat);
+    body.scale.y = 0.85; body.position.y = 1.0;
+    gate.add(body);
+    // glowing crevice where the flesh meets the creep
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.22, 8, 32), ringMat);
+    ring.position.y = 0.28; ring.rotation.x = Math.PI / 2;
+    gate.add(ring);
+    // thorax column + the great central bone spire
+    const thorax = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.7, 3.4, 9), moundMat);
+    thorax.position.y = 3.0;
+    gate.add(thorax);
+    const spire = new THREE.Mesh(new THREE.ConeGeometry(0.55, 5.5, 7), boneMat);
+    spire.position.y = 7.0;
+    gate.add(spire);
+    // four claw-fangs — shanks lean out, tips hook back over the pit
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * Math.PI * 2 + Math.PI / 4;
+      const claw = new THREE.Group();
+      claw.position.set(Math.cos(a) * 3.0, 0, Math.sin(a) * 3.0);
+      claw.rotation.y = -a;                                   // local +x = outward
+      const shank = new THREE.Mesh(new THREE.ConeGeometry(0.6, 3.8, 6), boneMat);
+      shank.position.set(0, 1.9, 0); shank.rotation.z = -0.30;  // leans out
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.9, 6), boneMat);
+      tip.position.set(0.62, 3.65, 0); tip.rotation.z = 0.62;   // hooks back in
+      claw.add(shank, tip);
+      gate.add(claw);
+    }
+    // secondary fangs between the claws
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * Math.PI * 2;
+      const f = new THREE.Group();
+      f.position.set(Math.cos(a) * 2.75, 0, Math.sin(a) * 2.75);
+      f.rotation.y = -a;
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.42, 2.7, 5), boneMat);
+      c.position.y = 1.25; c.rotation.z = -0.42;
+      f.add(c); gate.add(f);
+    }
+    // ground fangs sprawling off the pit lip
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2 + 0.25;
+      const tg = new THREE.Group();
+      tg.position.set(Math.cos(a) * 3.5, 0, Math.sin(a) * 3.5);
+      tg.rotation.y = -a;
+      const f = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.0, 5), boneMat);
+      f.position.y = 0.4; f.rotation.z = -0.9;
+      tg.add(f); gate.add(tg);
+    }
+    // pulsing magenta brood-orbs — the weakpoint glow
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2 + 0.4;
+      const sac = new THREE.Mesh(new THREE.SphereGeometry(0.5 + Math.random() * 0.28, 9, 7), sacMat);
+      sac.position.set(Math.cos(a) * (1.7 + Math.random() * 0.5), 0.9 + Math.random() * 0.9,
+                       Math.sin(a) * (1.7 + Math.random() * 0.5));
       gate.add(sac);
     }
-    // spikes
-    for (let i = 0; i < 6; i++) {
-      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.18, 1.6 + Math.random(), 5), moundMat);
-      const a = i / 6 * Math.PI * 2;
-      sp.position.set(Math.cos(a) * 2.2, 0.7, Math.sin(a) * 2.2);
-      sp.rotation.set((Math.random() - .5) * .6, 0, (Math.random() - .5) * .6);
-      gate.add(sp);
+    // crown of smaller orbs tucked under the spire
+    for (let i = 0; i < 3; i++) {
+      const a = i / 3 * Math.PI * 2 + 0.9;
+      const sac = new THREE.Mesh(new THREE.SphereGeometry(0.34, 8, 6), sacMat);
+      sac.position.set(Math.cos(a) * 1.15, 2.6 + Math.random() * 0.5, Math.sin(a) * 1.15);
+      gate.add(sac);
     }
-    const glow = new THREE.PointLight(0xa040ff, 0.9, 18);
-    glow.position.y = 2;
+    const glow = new THREE.PointLight(0xff2a9a, 0.9, 20);
+    glow.position.y = 2.4;
     gate.add(glow);
     // vertical beacon so hives are findable across the arena
     const beam = new THREE.Mesh(
@@ -236,20 +283,20 @@ function buildWorld(scene) {
     scene.add(gate);
 
     const spawner = {
-      mesh: gate, ring, ringMat, moundMat, sacMat, beam, glow,
+      mesh: gate, ring, ringMat, moundMat, boneMat, sacMat, beam, glow,
       pos: new THREE.Vector3(gx, 0, gz),
       hp: 4000, maxHp: 4000, dead: false, flash: 0,
       eggs: [],                                          // gestating zerglings
     };
     gate.userData.spawner = spawner;
     World.spawners.push(spawner);
-    World.colliders.push({ x: gx, z: gz, r: 2.4 });
-    World.sight.push({ x: gx, z: gz, r: 2.4, h: 1.4 });    // duck behind the mound
+    World.colliders.push({ x: gx, z: gz, r: 3.4 });
+    World.sight.push({ x: gx, z: gz, r: 3.4, h: 1.6 });    // duck behind the mound
 
     // green eggs ringing the mound — gestate EGG_T seconds, then a zergling pops out
     for (let i = 0; i < 6; i++) {
       const a = i / 6 * Math.PI * 2 + Math.random() * 0.5;
-      const r = 3.9 + Math.random() * 0.7;
+      const r = 4.7 + Math.random() * 0.8;
       const egg = new THREE.Mesh(eggGeo, eggMat);
       egg.scale.set(1, 0.75, 1);
       egg.position.set(gx + Math.cos(a) * r, 0.3, gz + Math.sin(a) * r);

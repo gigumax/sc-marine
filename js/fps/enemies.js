@@ -410,6 +410,7 @@ function hiveDownFX(s) {
   s.ringMat.emissiveIntensity = 0.05;
   s.ringMat.color.setHex(0x1a1220);
   s.moundMat.color.setHex(0x241a2e);
+  if (s.boneMat) s.boneMat.color.setHex(0x3a3430);
   s.sacMat.emissiveIntensity = 0;
   s.sacMat.color.setHex(0x2a2030);
   s.glow.intensity = 0;
