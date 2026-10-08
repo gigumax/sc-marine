@@ -7,6 +7,8 @@
 
 const _ez = x => x * x * (3 - 2 * x);           // smoothstep
 const _lz = (a, b, x) => a + (b - a) * x;
+const _flameGeo = new THREE.ConeGeometry(.55, 1.5, 6);
+const _flameMat = new THREE.MeshBasicMaterial({ color: 0xff7a1e, transparent: true, opacity: .8 });
 
 const Intro = {
   playing: false, menu: false, visiting: false, t: 0, menuT: 0, cb: null,
@@ -338,6 +340,8 @@ const Intro = {
       this.storyFire = new THREE.PointLight(0xff6a22, 0, 14);
       this.storyFire.position.set(0, 1.6, 18);
       Enemies.scene.add(this.storyFire);
+      this.cityGlow = new THREE.PointLight(0xff7a20, 0, 60);   // burning-block glow
+      Enemies.scene.add(this.cityGlow);
     }
     this.smokeT = 0; this._boomed = false; this.killT = 0; this.ultraGo = false;
     const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
@@ -568,14 +572,28 @@ const Intro = {
     // blocks go down one by one — windows die, towers lean and sink in smoke
     for (const B of this.storyCity) {
       if (!B.fell && t > B.fallT) {
-        B.fell = true;
-        B.winMat.color.setHex(0x1a1208);                   // lights out
+        B.fell = true; B.fallT = t;
         try { Audio2.noise(1.4, .5, 90, .6); } catch (e) {}
       }
       if (B.fell) {
+        if (!B.lit) {                                  // ignite — ultras skip the timer but still burn
+          B.lit = true;
+          B.winMat.color.setHex(0xff5a12);             // windows burn, not just go dark
+          B.fires = [];
+          for (let fi = 0; fi < 2 + (B.h > 6 ? 1 : 0); fi++) {
+            const fl = new THREE.Mesh(_flameGeo, _flameMat);
+            fl.position.set((Math.random() - .5) * 1.3, B.h * (.5 + Math.random() * .45),
+                            (Math.random() - .5) * 1.3);
+            fl.scale.setScalar(.7 + Math.random() * .6);
+            B.g.add(fl);                               // rides the wreck as it leans
+            B.fires.push({ m: fl, s: fl.scale.y, ph: Math.random() * 7 });
+          }
+        }
         const k = Math.min(1, (t - B.fallT) / 1.8);
         B.g.rotation.z = B.dir * _ez(k) * (B.far ? .14 : .22);
         B.g.position.y = -_ez(k) * (B.h * (B.far ? .55 : .45));
+        for (const fl of B.fires || [])                // flames lick and gutter
+          fl.m.scale.y = fl.s * (.6 + Math.abs(Math.sin(t * 9 + fl.ph)) * .8);
       }
     }
     // fires + smoke over whatever has fallen
@@ -595,6 +613,10 @@ const Intro = {
         this.smokeT = .12;
         const src = this.storyCity.filter(b => b.fell);
         const at = src.length ? src[Math.floor(Math.random() * src.length)] : null;
+        if (at && this.cityGlow) {                     // firelight over the burning block
+          this.cityGlow.position.set(at.bx, Math.max(2, at.g.position.y + at.h * .7), at.bz);
+          this.cityGlow.intensity = 3 + Math.random() * 4;
+        }
         const p = new THREE.Mesh(new THREE.SphereGeometry(.5, 5, 4),
           new THREE.MeshBasicMaterial({ color: 0x140f0b, transparent: true, opacity: .55 }));
         p.position.set((at ? at.bx : 0) + (Math.random() - .5) * 2,
@@ -719,10 +741,11 @@ const Intro = {
     for (const x of this.storyFx) Enemies.scene.remove(x.m);
     this.storyMarines = []; this.storyUltras = []; this.storyFx = [];
     if (this.storyFire) { Enemies.scene.remove(this.storyFire); this.storyFire = null; }
+    if (this.cityGlow) { Enemies.scene.remove(this.cityGlow); this.cityGlow = null; }
     for (const B of this.storyCity) Enemies.scene.remove(B.g);
     for (const c of this.storyCivs) Enemies.scene.remove(c.m);
     this.storyCity = []; this.storyCivs = [];
-    if (World.base) { World.base.g.rotation.set(0, 0, 0); World.base.g.position.y = .12; }
+    if (World.base) resetBaseLift();                   // un-scorch the ride home
     const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
     if (Enemies.list.length) {                                   // story extras — fresh field for the game
       for (const e of Enemies.list) Enemies.scene.remove(e.mesh);

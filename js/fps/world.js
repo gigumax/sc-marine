@@ -380,7 +380,9 @@ function buildBase(scene) {
 
   const col = { x: 0, z: BZ, r: 3.1 };
   const sgt = { x: 0, z: BZ, r: 3.1, h: 3.2 };
-  World.base = { g, thr, warp, dust, col, sgt, lift: -1, delay: -1, warped: false };
+  g.userData.base = true;                            // hitscan walk-up tag
+  World.base = { g, thr, warp, dust, col, sgt, lift: -1, delay: -1, warped: false,
+    hp: 300, boomed: false, boomK: 0, civs: [], boomLight: null, flash: null };
   World.colliders.push(col);
   World.sight.push(sgt);
 }
@@ -388,7 +390,19 @@ function buildBase(scene) {
 /* base waits on the pad, then lifts a few seconds after every (re)drop */
 function resetBaseLift() {
   const b = World.base; if (!b) return;
-  b.g.visible = true; b.g.position.y = .12;
+  b.g.visible = true; b.g.position.y = .12; b.g.rotation.set(0, 0, 0);
+  b.hp = 300; b.boomed = false; b.boomK = 0;             // easter egg — whole again
+  b.g.traverse(m => {                                   // un-char the hull
+    if (m.isMesh && m.userData.oc !== undefined) {
+      m.material.color.setHex(m.userData.oc);
+      if (m.material.emissive && m.userData.oe !== undefined)
+        m.material.emissive.setHex(m.userData.oe);
+    }
+  });
+  for (const c of b.civs) Enemies.scene.remove(c.m);    // sweep the charcoal
+  b.civs = [];
+  if (b.boomLight) { Enemies.scene.remove(b.boomLight); b.boomLight = null; }
+  if (b.flash) { Enemies.scene.remove(b.flash.m); b.flash = null; }
   b.thr.visible = false;
   b.warp.visible = false; b.warp.material.opacity = 0;
   b.lift = -1; b.warped = false; b.delay = 2.4;
@@ -397,8 +411,108 @@ function resetBaseLift() {
   if (!World.sight.includes(b.sgt)) World.sight.push(b.sgt);
 }
 
+/* charcoal crew — cylinder+sphere in scorched black */
+const _charMat = new THREE.MeshBasicMaterial({ color: 0x0d0a08 });
+function charCiv() {
+  const g = new THREE.Group();
+  const bo = new THREE.Mesh(new THREE.CylinderGeometry(.12, .15, .55, 5), _charMat);
+  bo.position.y = .4; g.add(bo);
+  const hd = new THREE.Mesh(new THREE.SphereGeometry(.1, 5, 4), _charMat);
+  hd.position.y = .78; g.add(hd);
+  return g;
+}
+
+/* easter egg — shoot the ride home and it goes up, crew included */
+function baseBoom() {
+  const b = World.base; if (!b || b.boomed) return;
+  b.boomed = true; b.lift = -1; b.delay = -1; b.thr.visible = false;
+  b.g.traverse(m => {                                  // scorch it
+    if (m.isMesh) {
+      if (m.userData.oc === undefined) m.userData.oc = m.material.color.getHex();
+      if (m.material.emissive && m.userData.oe === undefined)
+        m.userData.oe = m.material.emissive.getHex();
+      m.material.color.setHex(0x0d0a07);
+      if (m.material.emissive) m.material.emissive.setHex(0);
+    }
+  });
+  b.boomLight = new THREE.PointLight(0xff8a2a, 9, 26);
+  b.boomLight.position.set(0, 2.4, 18);
+  Enemies.scene.add(b.boomLight);
+  b.flash = { t: 0, m: new THREE.Mesh(new THREE.SphereGeometry(.9, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffc06a, transparent: true, opacity: .85,
+      blending: THREE.AdditiveBlending, depthWrite: false })) };
+  b.flash.m.position.set(0, 1.8, 18); Enemies.scene.add(b.flash.m);
+  // burnt crew rains out of the wreck
+  for (let i = 0; i < 8; i++) {
+    const m = charCiv();
+    m.position.set((Math.random() - .5) * 2.2, 2.2 + Math.random() * 1.4,
+                   18 + (Math.random() - .5) * 2.2);
+    Enemies.scene.add(m);
+    b.civs.push({ m, vx: (Math.random() - .5) * 7, vy: 4 + Math.random() * 5,
+      vz: (Math.random() - .5) * 7, spin: (Math.random() - .5) * 9 });
+  }
+  // smoke plumes off the pyre
+  for (let i = 0; i < 5; i++) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(.5, 5, 4),
+      new THREE.MeshBasicMaterial({ color: 0x140f0b, transparent: true, opacity: .55 }));
+    m.position.set((Math.random() - .5) * 2, 1.6 + Math.random() * 1.5,
+                   18 + (Math.random() - .5) * 2);
+    Enemies.scene.add(m);
+    b.civs.push({ m, vx: 0, vy: 1.5 + Math.random() * 1.5, vz: 0, smoke: true, t: 0 });
+  }
+  // lings hugging the pad get cooked too
+  for (const e of Enemies.list)
+    if (!e.dead && Math.hypot(e.mesh.position.x, e.mesh.position.z - 18) < 9)
+      try { damageEnemy(e, 500, false, false); } catch (err) {}
+  // and if you were standing next to it — you eat it
+  const pd = Math.hypot(Player.pos.x, Player.pos.z - 18);
+  if (pd < 15)
+    damagePlayer(Math.round(Math.max(15, 95 - pd * 5.2)), new THREE.Vector3(0, 1.5, 18));
+  UI.toast(['CREW WAS STILL ABOARD — NICE', 'THAT WAS OUR RIDE HOME',
+            'TERRAN COMMAND HAS QUESTIONS'][Math.floor(Math.random() * 3)]);
+  Audio2.noise(1.6, .9, 60, .7); Audio2.tone(38, 1.4, 'sawtooth', .3, 24);
+  Player.shake = 1.6;
+}
+
 function updateBase(dt) {
   const b = World.base; if (!b) return;
+  if (b.boomed) {                                      // burn instead of lifting
+    b.boomK = Math.min(1, b.boomK + dt * 1.1);
+    const k = _wEase(b.boomK);
+    b.g.rotation.z = k * .5;                           // slumps over, scorched
+    b.g.position.y = .12 - k * .62;
+    if (b.boomLight) {
+      b.boomLight.intensity *= 1 - dt * 2.2;
+      if (b.boomLight.intensity < .05) {
+        Enemies.scene.remove(b.boomLight); b.boomLight = null;
+      }
+    }
+    if (b.flash) {
+      b.flash.t += dt; b.flash.m.scale.setScalar(1 + b.flash.t * 9);
+      b.flash.m.material.opacity = Math.max(0, .85 - b.flash.t * 1.7);
+      if (b.flash.t > .6) { Enemies.scene.remove(b.flash.m); b.flash = null; }
+    }
+    for (const c of b.civs) {
+      if (c.rest) continue;
+      if (c.smoke) {                                   // plumes just rise + fade
+        c.t += dt; c.m.position.y += c.vy * dt;
+        c.m.scale.multiplyScalar(1 + dt * .9);
+        c.m.material.opacity = .55 * Math.max(0, 1 - c.t / 2.5);
+        if (c.t > 2.5) { Enemies.scene.remove(c.m); c.rest = true; }
+        continue;
+      }
+      c.vy -= 16 * dt;                                 // charcoal arcs, then lies still
+      c.m.position.x += c.vx * dt;
+      c.m.position.y += c.vy * dt;
+      c.m.position.z += c.vz * dt;
+      c.m.rotation.z += c.spin * dt;
+      if (c.m.position.y <= .14) {
+        c.rest = true; c.m.position.y = .14;
+        c.m.rotation.set(-1.5, Math.random() * 6, 0);
+      }
+    }
+    return;                                            // she ain't flying anywhere
+  }
   if (b.delay > 0) {
     b.delay -= dt;
     if (b.delay <= 0 && b.lift < 0) {

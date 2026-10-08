@@ -350,6 +350,7 @@ function fireWeapon() {
   const meshes = [];
   for (const e of Enemies.list) if (!e.dead) meshes.push(e.mesh);
   for (const s of World.spawners) if (!s.dead) meshes.push(s.mesh);
+  if (World.base && !World.base.warped) meshes.push(World.base.g);   // the ride home
   const hits = _ray.intersectObjects(meshes, true);
 
   let end = _ray.ray.origin.clone().add(_dir.clone().multiplyScalar(80));
@@ -358,9 +359,11 @@ function fireWeapon() {
     end = h.point.clone();
     // walk up to the entity root
     let obj = h.object, en = null, sp = null, part = 'body';
+    let hitBase = false;
     while (obj) {
       if (obj.userData.enemy) { en = obj.userData.enemy; break; }
       if (obj.userData.spawner) { sp = obj.userData.spawner; break; }
+      if (obj.userData.base) { hitBase = true; break; }
       if (obj.userData.part) part = obj.userData.part;
       obj = obj.parent;
     }
@@ -378,6 +381,17 @@ function fireWeapon() {
         if (!Player._rangeHintT || performance.now() - Player._rangeHintT > 4000) {
           Player._rangeHintT = performance.now();
           UI.toast('HIVE ARMORED — GET CLOSER');
+        }
+      }
+    } else if (hitBase) {                                // friendly fire on the dropship
+      sparkBurst(h.point);
+      const b = World.base;
+      if (b && !b.boomed) {
+        b.hp -= Player.dmg;
+        if (b.hp <= 0) baseBoom();
+        else if (b.hp < 200 && (!Player._baseHintT || performance.now() - Player._baseHintT > 5000)) {
+          Player._baseHintT = performance.now();
+          UI.toast('CEASE FIRE — THAT\'S OUR LIFT OUT');
         }
       }
     }
@@ -584,6 +598,12 @@ function updateMissiles(dt) {
                             : damageSpawner(s, ms.dmg, Player.pos);
           break;
         }
+      }
+      if (!detonate && World.base && !World.base.warped
+          && Math.hypot(mp.x, mp.z - 18) < 3.4 && mp.y < 3.4) {   // grenade on the pad
+        detonate = true;
+        const b = World.base;
+        if (!b.boomed && (b.hp -= ms.dmg) <= 0) baseBoom();
       }
       if (!detonate && mp.y <= 0.05) detonate = true;  // dirt
     }
