@@ -13,7 +13,9 @@ const Intro = {
   scene: null, cam: null,
   chest: null, door: null, doorGlow: null, outLight: null,
   look: new THREE.Vector3(), armed: false,
-  vYaw: Math.PI, vPitch: 0, vYawT: Math.PI, vPitchT: 0, _vMove: null,
+  vYaw: Math.PI, vPitch: 0, vYawT: Math.PI, vPitchT: 0,
+  _vMove: null, _vClick: null, _vRay: null, _vNdc: null,
+  _suitHot: false, onSuitTap: null,
 
   /* ---------- one-time scene build ---------- */
   build() {
@@ -102,27 +104,17 @@ const Intro = {
     this.baseLight.position.set(0, 3, -7.5); s.add(this.baseLight);
 
     /* --- the CMC suit on its rack — the real battle mesh, front (+z) out --- */
-    const suit = new THREE.Group(); s.add(suit);
+    const suit = this.suit = new THREE.Group(); s.add(suit);
     B(.5, .08, .5, joint, 0, .04, -.2, suit);                       // rack base
     B(.1, 1.9, .1, joint, 0, .95, -.48, suit);                      // rack post
     B(.14, .3, .14, joint, 0, 1.75, -.42, suit);                    // head mount
     B(.1, .2, .3, joint, -.34, 1.5, -.3, suit);                     // shoulder clamps
     B(.1, .2, .3, joint, .34, 1.5, -.3, suit);
 
-    const body = buildMarineMesh(0x4ad0ff);                         // battle suit, cyan trim
-    const gun = body.children.find(c => c.isGroup);                 // rifle stays on the rack's rack
-    if (gun) body.remove(gun);
-    body.userData.barBg.visible = body.userData.barFg.visible = false;
-    suit.add(body);
-
-    // dark entry cavity the panels reveal + a lit core to sell the tech
-    B(.5, .66, .05, dark, 0, 1.18, .2, body);
-    const core = B(.16, .16, .03, glowC, 0, 1.18, .215, body);
-    core.material = core.material.clone();
-    this.core = core;
-
-    /* chest = four panels hinged at the torso's outer corners —
-       they peel outward so the cross seam splits open first */
+    // cavity + core + chest panels ride on whatever suit body is racked
+    this.cavity = B(.5, .66, .05, dark, 0, 1.18, .2);
+    this.core = B(.16, .16, .03, glowC, 0, 1.18, .215);
+    this.core.material = this.core.material.clone();
     this.panels = [];
     for (const [cx, cy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
       const pivot = new THREE.Group();
@@ -132,10 +124,25 @@ const Intro = {
       plate.material = plate.material.clone();
       plate.material.color.setHex(0x36495e);
       B(.05, .05, .065, glowC, -cx * .06, -cy * .08, .04, pivot);   // corner light
-      body.add(pivot);
       this.panels.push(pivot);
     }
-    this.setChest(0);                                               // sealed — no opening yet
+    this.suitFor('marine');                                         // default rig
+  },
+
+  /* swap the racked rig to the class the player picked */
+  suitFor(unit) {
+    if (this.suitBody && this.suitUnit === unit) return;
+    if (this.suitBody) this.suit.remove(this.suitBody);
+    const accent = unit === 'marauder' ? 0xff8a3a : unit === 'medic' ? 0x5aff8a : 0x4ad0ff;
+    const body = unit === 'marauder' ? buildMarauderMesh(accent) : buildMarineMesh(accent);
+    const gun = body.userData.gun || body.children.find(c => c.isGroup);
+    if (gun) body.remove(gun);                                    // weapon stays on the rack
+    if (body.userData.barBg)
+      body.userData.barBg.visible = body.userData.barFg.visible = false;
+    body.add(this.cavity, this.core, ...this.panels);             // chest rig rides the new suit
+    this.suit.add(body);
+    this.suitBody = body; this.suitUnit = unit;
+    this.setChest(0);
   },
 
   /* 1 = iris fully open, 0 = sealed shut */
@@ -166,30 +173,39 @@ const Intro = {
       this.cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 60);
     else this.cam.aspect = innerWidth / innerHeight, this.cam.updateProjectionMatrix();
     this.visiting = true; this.menu = false;
+    this.suitFor(Game.unit || 'marine');                 // YOUR rig is the one on the rack
     this.vYaw = this.vYawT = Math.PI;                    // start facing the suit rack
     this.vPitch = this.vPitchT = 0;
+    if (!this._vRay) this._vRay = new THREE.Raycaster();
+    if (!this._vNdc) this._vNdc = new THREE.Vector2();
     if (this._vMove) document.removeEventListener('mousemove', this._vMove);
     this._vMove = e => {
-      if (document.pointerLockElement) {               // locked — steer like the field
-        this.vYawT   = Math.max(Math.PI - 2.3, Math.min(Math.PI + 2.3,
-          this.vYawT - e.movementX * .0022));
-        this.vPitchT = Math.max(-0.9, Math.min(0.9, this.vPitchT - e.movementY * .0022));
-      } else {                                         // lock didn't take — map pointer pos
-        const nx = e.clientX / innerWidth * 2 - 1,
-              ny = e.clientY / innerHeight * 2 - 1;
-        this.vYawT   = Math.PI + nx * 2.1;             // ~120° each way covers the room
-        this.vPitchT = Math.max(-0.9, Math.min(0.9, -ny * 0.9));
-      }
+      // deltas work with or without pointer lock — head follows the mouse
+      this.vYawT = Math.max(Math.PI - 2.1, Math.min(Math.PI + 2.1,
+        this.vYawT + e.movementX * 0.0028));
+      this.vPitchT = Math.max(-0.9, Math.min(0.9, this.vPitchT - e.movementY * 0.0028));
     };
     document.addEventListener('mousemove', this._vMove);
+    if (!this._vClick) this._vClick = () => {
+      if (this._suitHot && this.onSuitTap) this.onSuitTap();   // looking at the rig = its button
+    };
+    document.addEventListener('mousedown', this._vClick);
+    this._suitHot = false;
     document.getElementById('intro-fade').style.opacity = 0;
+    const bh = document.getElementById('barracks-hint');
+    if (bh) bh.classList.add('hidden');
     Game.renderer.domElement.requestPointerLock();     // mouse locks in like the fight
   },
 
   leave() {
     this.visiting = false;
     if (this._vMove) { document.removeEventListener('mousemove', this._vMove); this._vMove = null; }
+    if (this._vClick) document.removeEventListener('mousedown', this._vClick);
+    document.body.style.cursor = '';
+    const bh = document.getElementById('barracks-hint');
+    if (bh) bh.classList.add('hidden');
     document.exitPointerLock && document.exitPointerLock();
+    this.setChest(0);                                  // rig reseals, core back to idle glow
     this.show();                                       // hand the camera back to the drift
   },
 
@@ -229,6 +245,12 @@ const Intro = {
     this.playing = false; this.menu = false; this.visiting = false;
     document.removeEventListener('keydown', this._skip);
     document.removeEventListener('mousedown', this._skip);
+    if (this._vMove) document.removeEventListener('mousemove', this._vMove);
+    if (this._vClick) document.removeEventListener('mousedown', this._vClick);
+    document.body.style.cursor = '';
+    const bh = document.getElementById('barracks-hint');
+    if (bh) bh.classList.add('hidden');
+    document.exitPointerLock && document.exitPointerLock();
     document.getElementById('storyscreen').classList.add('hidden');
     document.getElementById('intro-visor').style.opacity = 0;
     const f = document.getElementById('intro-fade');
@@ -250,6 +272,16 @@ const Intro = {
                     p.y + Math.sin(this.vPitch) * 5,
                     p.z + Math.cos(this.vYaw) * cy * 5);
       this.cam.lookAt(this.look);
+      // staring at your rig → it glows as the deploy button
+      this._vRay.setFromCamera(this._vNdc.set(0, 0), this.cam);
+      const hot = this._vRay.intersectObject(this.suit, true).length > 0;
+      if (hot !== this._suitHot) {
+        this._suitHot = hot;
+        const h = document.getElementById('barracks-hint');
+        if (h) h.classList.toggle('hidden', !hot);
+      }
+      if (this.core) this.core.material.emissiveIntensity =
+        .3 + (this._suitHot ? 1.6 + Math.sin(t * 6) * .8 : Math.sin(t * 2) * .3 + .3);
       return;
     }
     if (this.menu && !this.playing) {          // menu backdrop — drift inside the barracks

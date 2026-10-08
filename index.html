@@ -98,17 +98,16 @@
   <div id="story-skip">CLICK OR PRESS ANY KEY TO DEPLOY ▸</div>
 </div>
 
-<!-- back chip shown while touring the barracks -->
-<button id="barracks-back" class="ghost hidden">◄ BACK TO LOBBY</button>
+<!-- back chip + suit hint shown while touring the barracks -->
+<button id="barracks-back" class="ghost hidden">◄ BACK TO ROSTER</button>
+<div id="barracks-hint" class="hidden">SUIT UP — CLICK YOUR RIG</div>
 
 <!-- start screen -->
 <div id="startscreen" class="overlay">
   <div class="panel">
     <h1>STARCRAFT<span>MARINE</span></h1>
-    <p class="obj">Destroy the <b>4 spawn-hives</b> marked by purple beacons, then clear the swarm.<br>
-      Follow the <b>★-marked marine</b> — rack up <b>50 zerg kills</b> to take command.<br>
-      <b>Online Match</b>: squad up with 2–5 real marines — the zerg hunt all of you.<br>
-      Watch for <b>roaches</b> — they spit acid. <b>Headshots</b> drop lings fast.</p>
+    <p class="obj">Pick your armor — <b>your rig is racked in the barracks</b>.<br>
+      Tap the suit to seal up and drop. Burn the <b>4 hives</b>, clear the swarm.</p>
     <div class="controls">
       <div>
         <h3>Mouse &amp; Keyboard</h3>
@@ -132,11 +131,7 @@
       <button class="cls" id="cls-medic" data-unit="medic"><b>MEDIC</b><i>NANO BEAM · 100HP · heal</i></button>
       <button class="cls locked" id="cls-marauder" data-unit="marauder"><b>MARAUDER</b><i>PUNISHER · 300HP · ★ ONLY</i></button>
     </div>
-    <div class="mode-row">
-      <button id="btn-solo">Solo Ops</button>
-      <button id="btn-online">Online Match</button>
-    </div>
-    <button id="btn-barracks" class="ghost">TOUR THE BARRACKS</button>
+    <button id="btn-online" class="ghost">ONLINE UPLINK — SQUAD UP</button>
     <p class="fine">Fan-made homage for personal use. Not affiliated with Blizzard.</p>
   </div>
 </div>

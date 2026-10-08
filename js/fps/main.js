@@ -182,9 +182,10 @@ function pollPad(dt) {
   if (once(0)) tryJump();                            // A
   if (once(9)) {                                     // Start
     if (Player.dead || Game.won) restart();
+    else if (!Game.running && !Intro.playing && Intro.visiting) deployFromBarracks();
     else if (!Game.running && !Intro.playing && !Intro.visiting
              && $id('lobbyscreen').classList.contains('hidden')) {
-      soloOps();
+      enterBarracks();
     }
   }
   return { moveX: Pad.lx, moveZ: Pad.ly, sprint: btn(10), fire: btn(7), aim: btn(6) };
@@ -264,10 +265,15 @@ function startGame(online) {
   canvasClick();
 }
 
-// SOLO — same suit-up walkout, straight into the fight
-function soloOps() {
-  if (Intro.playing) return;
+// PICK → into the barracks where your rig waits
+function enterBarracks() {
   $id('startscreen').classList.add('hidden');
+  $id('barracks-back').classList.remove('hidden');
+  Intro.visit();
+}
+// TAP THE SUIT → suit-up cinematic → drop into the fight
+function deployFromBarracks() {
+  $id('barracks-back').classList.add('hidden');
   Intro.play(() => { Net.on = false; startGame(); });
 }
 
@@ -445,13 +451,9 @@ window.addEventListener('load', () => {
     }
     document.querySelectorAll('.cls').forEach(x => x.classList.toggle('on', x === b));
     Game.unit = b.dataset.unit;
+    enterBarracks();                          // picked → go see your rig
   });
-  $id('btn-solo').onclick = soloOps;
-  $id('btn-barracks').onclick = () => {
-    $id('startscreen').classList.add('hidden');
-    $id('barracks-back').classList.remove('hidden');
-    Intro.visit();
-  };
+  Intro.onSuitTap = deployFromBarracks;
   $id('barracks-back').onclick = () => {
     Intro.leave();
     $id('barracks-back').classList.add('hidden');
@@ -478,9 +480,12 @@ window.addEventListener('load', () => {
   // Enter also starts
   window.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !Game.running && (Player.dead || Game.won)) restart();
+    else if (e.key === 'Enter' && !Game.running && !Intro.playing && Intro.visiting) {
+      deployFromBarracks();
+    }
     else if (e.key === 'Enter' && !Game.running && !Intro.playing && !Intro.visiting
              && $id('lobbyscreen').classList.contains('hidden')) {
-      soloOps();
+      enterBarracks();
     }
   });
 
@@ -522,6 +527,7 @@ window.addEventListener('load', () => {
         updatePlayer(dt);
       } else {
         // death cam: slump to ground; online → auto-redeploy
+        updateMedicBeam();                         // on-guard fails dead → beam off
         Player.cam.position.y += (0.35 - Player.cam.position.y) * dt * 3;
         Player.cam.rotation.z += (0.5 - Player.cam.rotation.z) * dt * 2;
         updateMissiles(dt);                          // rockets still fly while you bleed out

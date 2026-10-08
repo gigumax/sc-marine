@@ -314,12 +314,8 @@ function fireWeapon() {
       const t = -_ray.ray.origin.y / _dir.y;      // beam hits the deck
       if (_dir.y < 0 && t > 0 && t < 28) end = _ray.ray.origin.clone().addScaledVector(_dir, t);
     }
-    // laser look — green halo line + white-hot core, long enough to read as a beam
-    const bFrom = mz.addScaledVector(_dir, 0.9);
-    spawnTracer(bFrom, end, 0x5aff8a, 0.16);
-    const bFrom2 = bFrom.clone(); bFrom2.y += 0.02;
-    const end2 = end.clone();      end2.y += 0.02;
-    spawnTracer(bFrom2, end2, 0xeafff4, 0.12);
+    // beam visual is the continuous green laser in updateMedicBeam —
+    // this pulse only heals + leaves contact motes, no projectile spam
     if (Net.on) Net.tellShot({ o: mz, e: end, heal: 1 });
     return;
   }
@@ -409,6 +405,53 @@ function spawnTracer(from, to, col, ttl) {
 /* little green motes where the nano beam makes contact */
 const _healGeo = new THREE.SphereGeometry(0.035, 4, 3);
 const _healMat = new THREE.MeshBasicMaterial({ color: 0x5aff9a });
+/* continuous nano beam — a real green laser from screen-center while the
+   medic holds the trigger; pulses in fireWeapon do the healing */
+let _beamG = null;
+function updateMedicBeam() {
+  const on = Player.unit === 'medic' && Player.firing && !Player.dead
+    && !Player.reloading && Player.energy > 0;
+  if (!on) { if (_beamG) _beamG.visible = false; return; }
+  if (!_beamG) {
+    _beamG = new THREE.Group();
+    const mk = (col, op, th) => {
+      const g = new THREE.CylinderGeometry(th, th, 1, 6, 1, true);
+      g.rotateX(Math.PI / 2); g.translate(0, 0, 0.5);   // base at origin, +z out
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+        color: col, transparent: true, opacity: op,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+      _beamG.add(m); return m;
+    };
+    mk(0x4aff8a, 0.35, 0.05);                            // green halo
+    mk(0xeafff4, 0.9, 0.018);                            // white-hot core
+    _beamG.visible = false;
+    Enemies.scene.add(_beamG);
+  }
+  const from = Player.cam.getWorldPosition(new THREE.Vector3());
+  _dir.set(0, 0, -1).applyQuaternion(Player.cam.quaternion);
+  _ray.set(from, _dir); _ray.far = 30;
+  const meshes = [];
+  for (const a of Allies.list) if (!a.dead) meshes.push(a.mesh);
+  if (Net.on) for (const id in Net.peers) {
+    const q = Net.peers[id]; if (!q.dead) meshes.push(q.mesh);
+  }
+  const hits = _ray.intersectObjects(meshes, true);
+  let end;
+  if (hits.length) end = hits[0].point;
+  else {
+    const t = -from.y / _dir.y;                          // beam hits the deck
+    end = (_dir.y < 0 && t > 0 && t < 28)
+      ? from.clone().addScaledVector(_dir, t)
+      : from.clone().addScaledVector(_dir, 28);
+  }
+  const mz = from.clone().addScaledVector(_dir, 0.45);   // just ahead of the lens
+  _beamG.visible = true;
+  _beamG.position.copy(mz);
+  _beamG.lookAt(end);
+  _beamG.scale.set(1, 1, Math.max(0.01, end.distanceTo(mz)));
+  _beamG.children[0].material.opacity = 0.3 + Math.sin(Game.time * 40) * 0.08; // shimmer
+}
+
 function healBurst(pos) {
   for (let i = 0; i < 3; i++) {
     const m = new THREE.Mesh(_healGeo, _healMat);
@@ -614,6 +657,7 @@ function updatePlayer(dt) {
   // camera transform: pos + yaw/pitch + bob + shake
   const bobY = Math.sin(Player.bobT * 2) * 0.03;
   const bobX = Math.cos(Player.bobT) * 0.02;
+  updateMedicBeam();
   const sx = (Math.random() - .5) * Player.shake * 0.05;
   const sy = (Math.random() - .5) * Player.shake * 0.05;
   Player.cam.position.set(Player.pos.x + bobX, EYE() + bobY, Player.pos.z);

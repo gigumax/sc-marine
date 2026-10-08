@@ -250,6 +250,10 @@ button.ghost:hover { color:#cfe4ff; border-color:#5a8aba; }
   letter-spacing:3px; color:#6a8ab8; animation:lobbyPulse 1.6s infinite; }
 
 /* barracks tour */
-#btn-barracks { margin-top:14px; padding:10px 26px; font-size:12px; }
 #barracks-back { position:fixed; left:18px; top:18px; z-index:24;
   padding:10px 18px; font-size:12px; letter-spacing:2px; }
+#barracks-hint { position:fixed; left:50%; bottom:11vh; transform:translateX(-50%);
+  z-index:24; font-size:15px; letter-spacing:4px; color:#ffd24a; pointer-events:none;
+  text-shadow:0 0 14px rgba(255,190,60,.7), 0 1px 3px #000;
+  animation:lobbyPulse 1.4s infinite; }
+#startscreen #btn-online { margin-top:16px; }
