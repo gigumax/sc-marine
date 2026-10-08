@@ -500,6 +500,7 @@ const Intro = {
         e.storyGo  = 9 + Math.random() * 4.5;            // staggered bloodlust — wall buckles man by man
       }
       const mp = e.mesh.position;
+      if (e.storyMar && e.storyMar.userData.fell) e.storyMar = null;  // target's dead — let go
       if (e.sd) {                                        // shot dead — keel over, stay down
         if (e.sdDone) continue;                          // settled — hands off
         e.mesh.rotation.x += (1.5 - e.mesh.rotation.x) * Math.min(1, dt * 9);
@@ -567,7 +568,13 @@ const Intro = {
 
     // civilians scatter through the plaza — lings pull some of them down
     for (const c of this.storyCivs) {
-      if (c.fell) { c.m.rotation.x += (1.5 - c.m.rotation.x) * Math.min(1, dt * 5); continue; }
+      if (c.fell) {
+        if (!c.fellDone) {
+          c.m.rotation.x += (1.5 - c.m.rotation.x) * Math.min(1, dt * 5);
+          if (1.5 - c.m.rotation.x < .04) { c.m.rotation.x = 1.5; c.fellDone = true; }
+        }
+        continue;                                        // settled corpse — hands off
+      }
       const cp = c.m.position;
       const dd = Math.hypot(c.tx - cp.x, c.tz - cp.z);
       if (dd < .6 || !c.tx) { c.tx = (Math.random() - .5) * 88; c.tz = 14 + Math.random() * 40; }
@@ -588,10 +595,14 @@ const Intro = {
     for (let mi = 0; mi < this.storyMarines.length; mi++) {
       const m = this.storyMarines[mi], ud = m.userData;
       if (ud.fell) {
+        if (ud.fellDone) continue;                       // settled corpse — hands off
         m.rotation.x += (-1.45 - m.rotation.x) * Math.min(1, dt * 4);
         if (ud.kx) {                                     // ultra punt — skid to a stop
           m.position.x += ud.kx * dt; m.position.z += ud.kz * dt;
           ud.kx *= Math.max(0, 1 - dt * 4); ud.kz *= Math.max(0, 1 - dt * 4);
+        }
+        if (Math.abs(-1.45 - m.rotation.x) < .04 && Math.hypot(ud.kx || 0, ud.kz || 0) < .15) {
+          m.rotation.x = -1.45; ud.kx = ud.kz = 0; ud.fellDone = true;
         }
         continue;
       }
