@@ -14,7 +14,7 @@ const Intro = {
   chest: null, door: null, doorGlow: null, outLight: null,
   look: new THREE.Vector3(), armed: false,
   vYaw: Math.PI, vPitch: 0, vYawT: Math.PI, vPitchT: 0,
-  vPos: new THREE.Vector3(0, 0, 2.4), bobT: 0,
+  vPos: new THREE.Vector3(0, 0, 2.4), bobT: 0, vY: 0, stepT: 0,
   _vMove: null, _vClick: null, _vRay: null, _vNdc: null,
   _suitHot: false, onSuitTap: null,
 
@@ -177,15 +177,16 @@ const Intro = {
     this.suitFor(Game.unit || 'marine');                 // YOUR rig is the one on the rack
     this.vYaw = this.vYawT = Math.PI;                    // start facing the suit rack
     this.vPitch = this.vPitchT = 0;
-    this.vPos.set(0, 0, 2.4); this.bobT = 0;
+    this.vPos.set(0, 0, 2.4); this.bobT = 0; this.vY = 0;
+    Audio2.ensure();                                   // boots-on-deck sound
     if (!this._vRay) this._vRay = new THREE.Raycaster();
     if (!this._vNdc) this._vNdc = new THREE.Vector2();
     if (this._vMove) document.removeEventListener('mousemove', this._vMove);
     this._vMove = e => {
-      // deltas work with or without pointer lock — head follows the mouse
-      this.vYawT = Math.max(Math.PI - 2.1, Math.min(Math.PI + 2.1,
-        this.vYawT + e.movementX * 0.0028));
-      this.vPitchT = Math.max(-0.9, Math.min(0.9, this.vPitchT - e.movementY * 0.0028));
+      // deltas work with or without pointer lock — instant like the fight
+      this.vYaw = this.vYawT += e.movementX * 0.0022;
+      this.vPitch = this.vPitchT =
+        Math.max(-1.45, Math.min(1.45, this.vPitchT - e.movementY * 0.0022));
     };
     document.addEventListener('mousemove', this._vMove);
     if (!this._vClick) this._vClick = () => {
@@ -265,19 +266,24 @@ const Intro = {
     if (this.visiting) {                     // free-look visit — head follows the mouse
       this.menuT += dt;
       const t = this.menuT;
-      const k = Math.min(1, dt * 6);
-      this.vYaw += (this.vYawT - this.vYaw) * k;
-      this.vPitch += (this.vPitchT - this.vPitch) * k;
-      // WASD walk — room walls, bay funnel to the pad, sealed tunnel door
+      // WASD walk — same legs as the field: 6.0 walk, 9.2 sprint, Space jumps
       const p = this.vPos,
+        sprint = KEYS['shift'],
         mv = ((KEYS['w'] || KEYS['arrowup']) ? 1 : 0) - ((KEYS['s'] || KEYS['arrowdown']) ? 1 : 0),
         st = ((KEYS['d'] || KEYS['arrowright']) ? 1 : 0) - ((KEYS['a'] || KEYS['arrowleft']) ? 1 : 0);
       if (mv || st) {
-        const sp = 2.6 * (KEYS['shift'] ? 1.7 : 1) * dt;
+        const sp = (sprint ? 9.2 : 6.0) * dt;
         p.x += (Math.sin(this.vYaw) * mv + Math.cos(this.vYaw) * st) * sp;
         p.z += (Math.cos(this.vYaw) * mv - Math.sin(this.vYaw) * st) * sp;
-        this.bobT += dt * 9;
+        this.bobT += dt * (sprint ? 11 : 8);
+        this.stepT -= dt;
+        if (p.y <= 0 && this.stepT <= 0) {
+          this.stepT = sprint ? 0.28 : 0.4; Audio2.step();
+        }
       }
+      if (KEYS[' '] && p.y <= 0) { this.vY = 5.4; Audio2.jump(); }
+      this.vY -= 16 * dt; p.y += this.vY * dt;
+      if (p.y <= 0) { p.y = 0; this.vY = 0; }
       p.z = Math.max(-13.4, Math.min(9.4, p.z));
       if (p.z > 5.2 && Math.abs(p.x) > 0.68) p.z = 5.2;      // doorway funnel
       if (p.z < -5.2 && Math.abs(p.x) > 2.6) p.z = -5.2;     // bay mouth
@@ -289,11 +295,11 @@ const Intro = {
         const d = Math.sqrt(sd) || .01, k = 0.55 / d;
         p.x = sdx * k; p.z = -0.2 + sdz * k;
       }
-      const bob = (mv || st) ? Math.sin(this.bobT * 2) * .025 : Math.sin(t * .9) * .02;
-      this.cam.position.set(p.x, 1.5 + bob, p.z);
+      const bob = (mv || st) ? Math.sin(this.bobT * 2) * .03 : Math.sin(t * .9) * .02;
+      this.cam.position.set(p.x, 1.62 + p.y + bob, p.z);
       const cy = Math.cos(this.vPitch);
       this.look.set(p.x + Math.sin(this.vYaw) * cy * 5,
-                    1.5 + Math.sin(this.vPitch) * 5,
+                    1.62 + p.y + Math.sin(this.vPitch) * 5,
                     p.z + Math.cos(this.vYaw) * cy * 5);
       this.cam.lookAt(this.look);
       // staring at your rig → it glows as the deploy button
