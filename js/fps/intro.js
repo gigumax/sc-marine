@@ -547,7 +547,6 @@ const Intro = {
     // the wall fights like it's real — hold the line, track nearest ling, shoot
     for (let mi = 0; mi < this.storyMarines.length; mi++) {
       const m = this.storyMarines[mi], ud = m.userData;
-      if (!ud.fell && t > 20.2) ud.fell = true;          // stragglers die with the city
       if (ud.fell) {
         m.rotation.x += (-1.45 - m.rotation.x) * Math.min(1, dt * 4);
         if (ud.kx) {                                     // ultra punt — skid to a stop
@@ -611,6 +610,27 @@ const Intro = {
           if (d < bd) { bd = d; best = B; }
         }
         u.tgt = best || { bx: (Math.random() - .5) * 50, bz: 20 + Math.random() * 30, fell: false };
+      }
+      // cleave the line — one sweep takes a pair of marines, then a beat
+      u.cleaveT = (u.cleaveT || 0) - dt;
+      if (u.cleaveT <= 0) {
+        let pair = 0;
+        for (const mr of this.storyMarines) {
+          const ud = mr.userData;
+          if (ud.fell) continue;
+          const cd = Math.hypot(mr.position.x - up.x, mr.position.z - up.z);
+          if (cd < 2.4) {
+            ud.fell = true;
+            ud.kx = (mr.position.x - up.x) / cd * 9;      // punt them off the blades
+            ud.kz = (mr.position.z - up.z) / cd * 9;
+            try {
+              bloodBurst(mr.position.clone().setY(.8), 7);
+              Audio2.hitAt(10); Audio2.screech(10);
+            } catch (e) {}
+            if (++pair >= 2) break;
+          }
+        }
+        if (pair) u.cleaveT = .9;
       }
       const dx = u.tgt.bx - up.x, dz = u.tgt.bz - up.z, d = Math.hypot(dx, dz);
       if (d > 2.6) {
