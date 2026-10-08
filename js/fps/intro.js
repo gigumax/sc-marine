@@ -254,66 +254,84 @@ const Intro = {
         spawnEnemy('zergling', p);
       }
     }
-    // the city — a real skyline: dense tower grid + distant silhouette ring
+    // the city — three times the sprawl: dense tower grid + distant silhouette ring
     this.storyCity = [];
     const towerAt = (bx, bz, far) => {
-      const h = far ? 5 + Math.random() * 9 : 2.5 + Math.random() * 6.5,
-        w = far ? 2.6 + Math.random() * 2 : 1.7 + Math.random() * 1.6;
+      const h = far ? 6 + Math.random() * 12 : 3 + Math.random() * 8,
+        w = far ? 3 + Math.random() * 2.4 : 1.9 + Math.random() * 1.8;
       const g = new THREE.Group();
       const tower = new THREE.Mesh(new THREE.BoxGeometry(w, h, w),
         new THREE.MeshStandardMaterial({ color: far ? 0x141c26 : 0x232e3a, roughness: .8, metalness: .3 }));
       tower.position.y = h / 2; g.add(tower);
       const winMat = new THREE.MeshBasicMaterial({ color: 0x64d8ff });   // lit windows
-      if (!far) for (let wy = .7; wy < h - .3; wy += 1.05) {
+      if (!far) for (let wy = .7; wy < h - .3; wy += 1.15) {
         const s = new THREE.Mesh(new THREE.BoxGeometry(w * .78, .1, .02), winMat);
         s.position.set(0, wy, w / 2 + .015); g.add(s);
       }
       g.position.set(bx, 0, bz);
       Enemies.scene.add(g);
-      // wave of ruin rolls in from the north — near blocks fall first, skyline last
+      // ruin rolls north→south; the ultras also just flatten what they touch
       this.storyCity.push({ g, winMat, h, bx, bz, far,
-        fallT: 12.6 + (bz + 8) / 34 * 3.4 + Math.random() * .7,
+        fallT: 16.5 + (bz + 8) / 64 * 3.5 + Math.random() * .7,
         dir: Math.random() < .5 ? -1 : 1, fell: false });
     };
-    for (let gx = -34; gx <= 34; gx += 6.5)
-      for (let gz = -6; gz <= 36; gz += 6.5) {
+    for (let gx = -58; gx <= 58; gx += 6.5)
+      for (let gz = 14; gz <= 58; gz += 6.5) {
         const bx = gx + (Math.random() - .5) * 3, bz = gz + (Math.random() - .5) * 3;
-        if (Math.abs(bx) < 5 && bz > 11 && bz < 24) continue;   // keep the pad + hull clear
-        if (Math.random() < .18) continue;                      // gaps = streets
+        if (Math.abs(bx) < 5 && bz < 24) continue;          // keep the pad + hull clear
+        if (Math.random() < .16) continue;                  // gaps = streets
         towerAt(bx, bz, false);
       }
-    for (let i = 0; i < 26; i++) {                              // skyline silhouettes
-      const a = Math.random() * Math.PI * 2, r = 42 + Math.random() * 20;
-      towerAt(Math.cos(a) * r, 16 + Math.sin(a) * r * .7, true);
+    for (let i = 0; i < 40; i++) {                          // skyline silhouettes
+      const a = Math.random() * Math.PI * 2, r = 62 + Math.random() * 26;
+      towerAt(Math.cos(a) * r, 30 + Math.sin(a) * r * .7, true);
     }
 
-    // defenders all over the streets — marines + marauders, all doomed
+    // THE WALL — two deep ranks across the whole approach, marauders interleaved
     this.storyMarines = [];
-    const LINE = [
-      [-8.5, 10.5, 'mar'], [7.5, 9.5, 'mar'], [-14, 16, 'rau'], [14.5, 15, 'rau'],
-      [-1.7, 13.8, 'mar'], [1.7, 13.8, 'mar'], [-5, 18.5, 'mar'], [5.5, 18, 'rau'],
-      [-11, 22, 'mar'], [11, 23, 'mar'], [-3, 26.5, 'mar'], [3.2, 27, 'mar'],
-      [-17, 25, 'rau'], [16, 27, 'mar'], [-0.8, 16.3, 'mar'], [0.9, 16.1, 'mar'], // hull-side
-    ];
-    for (let i = 0; i < LINE.length; i++) {
-      const [mx, mz, kind] = LINE[i];
-      const m = (kind === 'rau' ? buildMarauderMesh : buildMarineMesh)(0x4ad0ff);
-      m.position.set(mx, 0, mz);                               // feet on the street
-      m.rotation.y = Math.PI + (Math.random() - .5) * .3;
+    let wRank = 0;
+    for (const [rz, step, xoff] of [[9.4, 2.7, 0], [11.9, 2.7, 1.35]]) {
+      wRank++;
+      for (let wx = -27 + xoff; wx <= 27; wx += step) {
+        const kind = (wRank === 2 && Math.round(wx) % 8 < 3) ? 'rau' : 'mar';
+        const m = (kind === 'rau' ? buildMarauderMesh : buildMarineMesh)(0x4ad0ff);
+        m.position.set(wx + (Math.random() - .5) * .5, 0, rz + (Math.random() - .5) * .4);
+        m.rotation.y = Math.PI + (Math.random() - .5) * .16;   // face the swarm
+        for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
+        m.userData.strafe = Math.random() < .5 ? -1 : 1;
+        m.userData.wall = true;                                // hold the line — no wandering
+        Enemies.scene.add(m);
+        this.storyMarines.push(m);
+      }
+    }
+    for (const fx of [-31, 31]) {                              // marauder anchors on the flanks
+      const m = buildMarauderMesh(0x4ad0ff);
+      m.position.set(fx, 0, 10.6);
+      m.rotation.y = Math.PI;
       for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
-      m.userData.fallT = 11.8 + i * .3 + Math.random() * .3;
-      m.userData.strafe = Math.random() < .5 ? -1 : 1;
+      m.userData.strafe = fx < 0 ? 1 : -1;
+      m.userData.wall = true;
       Enemies.scene.add(m);
       this.storyMarines.push(m);
     }
 
     // civilians loose in the streets — running, screaming, some don't make it
     this.storyCivs = [];
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 20; i++) {
       const m = this.civMesh();
-      m.position.set((Math.random() - .5) * 36, 0, 4 + Math.random() * 28);
+      m.position.set((Math.random() - .5) * 88, 0, 14 + Math.random() * 40);
       Enemies.scene.add(m);
       this.storyCivs.push({ m, tx: 0, tz: 0, spd: 4 + Math.random() * 2.4, fell: false, ph: Math.random() * 7 });
+    }
+
+    // the two ultralisks — parked past the wall's flank; they charge in late
+    this.storyUltras = [];
+    for (const ux of [-26, 26]) {
+      const u = buildUltraliskMesh();
+      u.position.set(ux, 0, -38);
+      u.rotation.y = Math.PI;                                  // snorting at the skyline, waiting
+      Enemies.scene.add(u);
+      this.storyUltras.push({ m: u, tgt: null, spd: 10.5 + Math.random() * 1.5, ph: Math.random() * 7 });
     }
     if (World.base) {                                    // wreck state + fire light
       World.base.g.rotation.set(0, 0, 0); World.base.g.position.y = .12;
@@ -321,7 +339,7 @@ const Intro = {
       this.storyFire.position.set(0, 1.6, 18);
       Enemies.scene.add(this.storyFire);
     }
-    this.smokeT = 0; this._boomed = false; this.killT = 0;
+    this.smokeT = 0; this._boomed = false; this.killT = 0; this.ultraGo = false;
     const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
     try { Audio2.ensure && Audio2.ensure(); } catch (e) {}
     this._skip = () => { if (this.armed) this.stop(); };
@@ -334,23 +352,25 @@ const Intro = {
     const t = this.storyT += dt, cam = this.storyCam;
     const f = document.getElementById('intro-fade');
     if (t < 1.1) f.style.opacity = 1 - t / 1.1;           // fade in from black
-    else if (t > 17.0) {                                 // city gone — fade to black
+    else if (t > 21.4) {                                 // city gone — fade to black
       f.style.background = '#000';
-      f.style.opacity = Math.min(1, (t - 17.0) / .7);
+      f.style.opacity = Math.min(1, (t - 21.4) / .7);
     }
     const ttl = document.getElementById('story-title');  // DEFEND MANKIND on the black
     if (ttl) ttl.style.opacity =
-      Math.max(0, Math.min(1, (t - 17.6) / .9)) * (t > 18.9 ? Math.max(0, 1 - (t - 18.9) / .6) : 1);
+      Math.max(0, Math.min(1, (t - 22.1) / .9)) * (t > 23.4 ? Math.max(0, 1 - (t - 23.4) / .6) : 1);
 
-    // keyframed aerial — nest, swarm charge, over the rooftops, city burns
+    // keyframed aerial — nest, charge, THE WALL, breakthrough, ultralisk rampage
     const KS = [
       [0.0, -70, 34, -205,   -70, 2, -258],
       [4.0, -72, 11, -228,   -70, 1, -260],
       [8.0, -56,  7, -150,   -20, 2, -80],
-      [11.5, -14,  9, -30,     0, 3, 14],    // over the rooftops, wave rolls in
-      [14.0,  9,  5,  30,      0, 2, 16],    // street-level battle
-      [16.4,  5,  2.8, 24,     0, 1.4, 17],  // close on the burn
-      [18.4,  12, 14, 42,      0, 2, 14],    // pull back over the burning skyline
+      [11.5, -20,  8, -26,     0, 2, 12],    // swoop in behind the wall
+      [13.6,   0,  3.2, 16,    0, 1.5, -20], // low over the firing line — into the swarm
+      [16.0,  14,  4,  8,      0, 1.5, 11],  // the line buckles
+      [18.4, -18,  6,  2,      0, 3, 30],    // ultralisks hit the blocks
+      [21.0,  10, 16, 58,      0, 3, 24],    // pull back over the burning city
+      [23.8,  18, 20, 66,      0, 3, 24],
     ];
     let i = 0;
     while (i < KS.length - 2 && t >= KS[i + 1][0]) i++;
@@ -366,11 +386,12 @@ const Intro = {
     for (const e of Enemies.list) {
       if (e.dead) continue;
       if (e.storyTgt === undefined) {
-        e.storyTgt = { x: (Math.random() - .5) * 8, z: 14 + Math.random() * 4 };
+        e.storyTgt = { x: (Math.random() - .5) * 10, z: 10 + Math.random() * 3 };  // straight at the wall
         e.storySpd = 20 + Math.random() * 10;
         e.storyPh  = Math.random() * 7;
         e.storyBld = Math.floor(Math.random() * (this.storyCity.length || 1));
         e.storyJx  = Math.random() - .5;
+        e.storyRet = 0;
       }
       const mp = e.mesh.position;
       if (e.sd) {                                        // shot dead — keel over, stay down
@@ -378,10 +399,28 @@ const Intro = {
         mp.y += (-0.05 - mp.y) * Math.min(1, dt * 4);
         continue;
       }
-      if (t > 10.5) {                                    // swarm breaks up over the city blocks
+      e.storyRet -= dt;
+      if (t > 9.0 && e.storyRet <= 0) {                  // swarm hunts the wall, man by man
+        e.storyRet = 0.7 + Math.random() * .5;
+        let best = null, bd = 30;
+        for (const mr of this.storyMarines) {
+          if (mr.userData.fell) continue;
+          const d = Math.hypot(mr.position.x - mp.x, mr.position.z - mp.z);
+          if (d < bd) { bd = d; best = mr; }
+        }
+        e.storyMar = best;
+      }
+      if (t > 9.0 && e.storyMar && !e.storyMar.userData.fell) {
+        e.storyTgt.x = e.storyMar.position.x; e.storyTgt.z = e.storyMar.position.z;
+        if (Math.hypot(mp.x - e.storyTgt.x, mp.z - e.storyTgt.z) < 1.5) {
+          e.storyMar.userData.fell = true;               // dragged down
+          try { bloodBurst(mp.clone().setY(.6), 6); } catch (e) {}
+          e.storyMar = null;
+        }
+      } else if (t > 10.5) {                             // wall's gone — swarm the blocks
         const B = this.storyCity[e.storyBld];
-        if (B) { e.storyTgt.x = B.bx + e.storyJx * 3; e.storyTgt.z = B.bz + (Math.random() - .5) * 3; }
-        else { e.storyTgt.x = e.storyJx * 4.4; e.storyTgt.z = 18 + e.storyJx * 3; }
+        if (B && !B.fell) { e.storyTgt.x = B.bx + e.storyJx * 3; e.storyTgt.z = B.bz + (Math.random() - .5) * 3; }
+        else { e.storyTgt.x = e.storyJx * 80; e.storyTgt.z = 20 + Math.random() * 36; }
       }
       const dx = e.storyTgt.x - mp.x, dz = e.storyTgt.z - mp.z, d = Math.hypot(dx, dz);
       if (d > 1.8) {
@@ -404,7 +443,7 @@ const Intro = {
       if (c.fell) { c.m.rotation.x += (1.5 - c.m.rotation.x) * Math.min(1, dt * 5); continue; }
       const cp = c.m.position;
       const dd = Math.hypot(c.tx - cp.x, c.tz - cp.z);
-      if (dd < .6 || !c.tx) { c.tx = (Math.random() - .5) * 38; c.tz = 4 + Math.random() * 30; }
+      if (dd < .6 || !c.tx) { c.tx = (Math.random() - .5) * 88; c.tz = 14 + Math.random() * 40; }
       cp.x += (c.tx - cp.x) / dd * c.spd * dt;
       cp.z += (c.tz - cp.z) / dd * c.spd * dt;
       cp.y = Math.abs(Math.sin(t * 12 + c.ph)) * .07;          // panicked scamper
@@ -418,13 +457,20 @@ const Intro = {
           }
     }
 
-    // marines fight like it's real — track nearest ling, strafe, backpedal, shoot
+    // the wall fights like it's real — hold the line, track nearest ling, shoot
     for (let mi = 0; mi < this.storyMarines.length; mi++) {
       const m = this.storyMarines[mi], ud = m.userData;
-      if (t > ud.fallT) ud.fell = true;
-      if (ud.fell) { m.rotation.x += (-1.45 - m.rotation.x) * Math.min(1, dt * 4); continue; }
+      if (!ud.fell && t > 20.2) ud.fell = true;          // stragglers die with the city
+      if (ud.fell) {
+        m.rotation.x += (-1.45 - m.rotation.x) * Math.min(1, dt * 4);
+        if (ud.kx) {                                     // ultra punt — skid to a stop
+          m.position.x += ud.kx * dt; m.position.z += ud.kz * dt;
+          ud.kx *= Math.max(0, 1 - dt * 4); ud.kz *= Math.max(0, 1 - dt * 4);
+        }
+        continue;
+      }
       // acquire closest live ling
-      let best = null, bd = 26;
+      let best = null, bd = 30;
       for (const e of Enemies.list) {
         if (e.dead || e.sd) continue;
         const d = Math.hypot(e.mesh.position.x - m.position.x, e.mesh.position.z - m.position.z);
@@ -434,18 +480,18 @@ const Intro = {
       if (best) {
         const dx = best.mesh.position.x - m.position.x, dz = best.mesh.position.z - m.position.z;
         m.rotation.y = Math.atan2(dx, dz);                     // square up on it
-        const fwd = bd < 5 ? -2.4 : (bd > 15 ? 1.8 : 0);       // fall back / press up
+        const fwd = ud.wall ? 0 : (bd < 5 ? -2.4 : (bd > 15 ? 1.8 : 0));  // the line holds
         if (Math.random() < dt * .6) ud.strafe *= -1;
-        const side = ud.strafe * (bd < 14 ? 1.5 : .4);
+        const side = ud.strafe * (bd < 14 ? 1.1 : .3);
         m.position.x += (Math.sin(m.rotation.y) * fwd + Math.cos(m.rotation.y) * side) * dt;
         m.position.z += (Math.cos(m.rotation.y) * fwd - Math.sin(m.rotation.y) * side) * dt;
-        m.position.x = Math.max(-32, Math.min(32, m.position.x));
-        m.position.z = Math.max(3, Math.min(30, m.position.z));
+        m.position.x = Math.max(-34, Math.min(34, m.position.x));
+        m.position.z = Math.max(7.5, Math.min(14.5, m.position.z));       // along the line
         m.position.y = Math.abs(Math.sin(t * 10 + mi)) * .05;  // combat shuffle
         // open fire on its own rhythm
         ud.fireT = (ud.fireT || 0) - dt;
-        if (ud.fireT <= 0 && t > 6.5) {
-          ud.fireT = .22 + Math.random() * .3;
+        if (ud.fireT <= 0 && t > 6.0) {
+          ud.fireT = .2 + Math.random() * .26;
           const nrm = Math.hypot(dx, dz) || 1;
           const from = m.position.clone().add(new THREE.Vector3(dx / nrm * .5, 1.25, dz / nrm * .5));
           const geo = new THREE.BufferGeometry()
@@ -456,10 +502,67 @@ const Intro = {
           this.storyFx.push({ m: ln, t: 0 });
           if (Math.random() < .25) { try { Audio2.shot(); } catch (e) {} }
         }
-      } else {                                                 // nothing in range — patrol a little
+      } else if (!ud.wall) {                                       // nothing in range — patrol a little
         m.position.x += Math.sin(t * .8 + mi * 2.3) * dt * .6;
         m.position.z += Math.cos(t * .7 + mi * 1.9) * dt * .6;
       }
+    }
+
+    // THE ULTRALISKS ARRIVE — two of them, trampling the wall then the city
+    if (t > 14.5 && !this.ultraGo) {
+      this.ultraGo = true;
+      try { Audio2.noise(1.6, .7, 70, .7); } catch (e) {}        // ground-shaking bellow
+    }
+    if (this.ultraGo) for (const u of this.storyUltras) {
+      const up = u.m.position;
+      // pick a standing block to flatten — prefer whatever's nearest
+      if (!u.tgt || u.tgt.fell) {
+        let best = null, bd = 60;
+        for (const B of this.storyCity) {
+          if (B.fell || B.far) continue;
+          const d = Math.hypot(B.bx - up.x, B.bz - up.z);
+          if (d < bd) { bd = d; best = B; }
+        }
+        u.tgt = best || { bx: (Math.random() - .5) * 50, bz: 20 + Math.random() * 30, fell: false };
+      }
+      const dx = u.tgt.bx - up.x, dz = u.tgt.bz - up.z, d = Math.hypot(dx, dz);
+      if (d > 2.6) {
+        up.x += dx / d * u.spd * dt;
+        up.z += dz / d * u.spd * dt;
+        u.m.rotation.y = Math.atan2(dx, dz);
+        up.y = Math.abs(Math.sin(t * 8 + u.ph)) * .1;
+      } else if (u.tgt.fell !== undefined) {
+        u.tgt.fell = true; u.tgt.fallT = t;              // shoulders through the tower
+        u.tgt.dir = dx >= 0 ? -1 : 1;
+        try { Audio2.noise(1.4, .6, 90, .6); } catch (e) {}
+        for (let i = 0; i < 4; i++) {                    // dust kicked off the collapse
+          const p = new THREE.Mesh(new THREE.SphereGeometry(.5, 5, 4),
+            new THREE.MeshBasicMaterial({ color: 0x140f0b, transparent: true, opacity: .5 }));
+          p.position.set(u.tgt.bx + (Math.random() - .5) * 2, .7 + Math.random(),
+                         u.tgt.bz + (Math.random() - .5) * 2);
+          Enemies.scene.add(p);
+          this.storyFx.push({ m: p, t: 0, ttl: 2.3, op: .5, vy: 1.7, grow: 1.1 });
+        }
+        u.tgt = null;
+      }
+      // trample marines and civs underfoot — punt the bodies
+      for (const mr of this.storyMarines) {
+        if (mr.userData.fell) continue;
+        const ddx = mr.position.x - up.x, ddz = mr.position.z - up.z;
+        if (ddx * ddx + ddz * ddz < 7.3) {
+          mr.userData.fell = true;
+          const k = 9 / (Math.hypot(ddx, ddz) || 1);
+          mr.userData.kx = ddx * k; mr.userData.kz = ddz * k;
+          try { bloodBurst(mr.position.clone().setY(.7), 6); } catch (e) {}
+        }
+      }
+      for (const c of this.storyCivs) {
+        if (!c.fell && Math.hypot(c.m.position.x - up.x, c.m.position.z - up.z) < 2.2)
+          c.fell = true;
+      }
+      const ulegs = u.m.userData.legs || [];
+      for (let li = 0; li < ulegs.length; li++)
+        ulegs[li].rotation.x = Math.sin(t * 9 + u.ph + li) * .4;
     }
 
     // blocks go down one by one — windows die, towers lean and sink in smoke
@@ -503,10 +606,10 @@ const Intro = {
     }
 
     // kills land where someone's actually aiming — victim is a shooter's target
-    if (t > 7.5 && t < 15) {
+    if (t > 6.5 && t < 19) {
       this.killT -= dt;
       if (this.killT <= 0) {
-        this.killT = 0.5 + Math.random() * .35;
+        this.killT = 0.4 + Math.random() * .3;
         const shooters = this.storyMarines.filter(m => !m.userData.fell && m.userData.tgt);
         if (shooters.length) {
           const v = shooters[Math.floor(Math.random() * shooters.length)].userData.tgt;
@@ -524,7 +627,7 @@ const Intro = {
     }
     this.storyFx = this.storyFx.filter(x => !x.done);
 
-    if (t >= 19.4) this.stop();
+    if (t >= 24.2) this.stop();
   },
 
   /* walk in and look around — mouse steers the head, no pointer lock */
@@ -611,8 +714,9 @@ const Intro = {
   stop() {
     this.playing = false; this.menu = false; this.visiting = false; this.story = false;
     for (const m of this.storyMarines) Enemies.scene.remove(m);   // pad set-dressing
+    for (const u of this.storyUltras || []) Enemies.scene.remove(u.m);
     for (const x of this.storyFx) Enemies.scene.remove(x.m);
-    this.storyMarines = []; this.storyFx = [];
+    this.storyMarines = []; this.storyUltras = []; this.storyFx = [];
     if (this.storyFire) { Enemies.scene.remove(this.storyFire); this.storyFire = null; }
     for (const B of this.storyCity) Enemies.scene.remove(B.g);
     for (const c of this.storyCivs) Enemies.scene.remove(c.m);
