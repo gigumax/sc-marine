@@ -142,6 +142,55 @@ const Intro = {
       this.panels.push(pivot);
     }
     this.suitFor('marine');                                         // default rig
+
+    /* --- your squad billets here — two ranks at ease flanking the aisle --- */
+    this.squadList = [];
+    const SLOT_POS = [
+      [-2.15, -3.5], [-2.15, -1.6], [-2.15, 0.3], [-2.15, 2.2], [-2.15, 4.1],
+      [ 2.15, -2.6], [ 2.15, -0.7], [ 2.15, 1.2], [ 2.15, 3.1],
+    ];
+    for (let i = 0; i < Allies.names.length; i++) {
+      const isLead = i === 0 || i === 4;                            // commanders wear marauder chassis
+      const m = (isLead ? buildMarauderMesh : buildMarineMesh)(Allies.accents[i]);
+      for (const k of ['barBg', 'barFg', 'star'])
+        if (m.userData[k]) m.userData[k].visible = false;
+      s.add(m);
+      const [sx, sz] = SLOT_POS[i];
+      this.squadList.push({
+        m, x: sx, z: sz,
+        ry: sx < 0 ? Math.PI / 2 : -Math.PI / 2,                    // face the aisle
+        ph: Math.random() * 7,
+        lane: sx < 0 ? -0.42 : 0.42,                                // file out two abreast
+        go: 9.0 + (4.1 - sz) * 0.30,                                // front rank leaves first
+      });
+    }
+    this.billetSquad();
+  },
+
+  /* park everyone back on their billet marks */
+  billetSquad() {
+    for (const m of this.squadList || []) {
+      m.m.position.set(m.x, 0, m.z);
+      m.m.rotation.set(0, m.ry, 0);
+      m.m.visible = true;
+    }
+  },
+
+  /* idle sway in ranks — or file out the door ahead of you once it opens */
+  squadUpdate(dt, t, marching) {
+    for (const s of this.squadList) {
+      const m = s.m;
+      if (marching && t > s.go) {
+        m.position.x += (s.lane - m.position.x) * Math.min(1, dt * 4);
+        m.position.z += 2.3 * dt;
+        m.rotation.y += (0 - m.rotation.y) * Math.min(1, dt * 5);   // square on the door
+        m.position.y = Math.abs(Math.sin(t * 11 + s.ph)) * .07;     // march step
+        if (m.position.z > 9.2) m.visible = false;                  // swallowed by the light
+      } else {
+        m.position.y = Math.sin(t * 1.1 + s.ph) * .012;             // idle breath
+        m.rotation.y = s.ry + Math.sin(t * .45 + s.ph) * .05;
+      }
+    }
   },
 
   /* swap the racked rig to the class the player picked */
@@ -176,6 +225,7 @@ const Intro = {
       this.cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 60);
     else this.cam.aspect = innerWidth / innerHeight, this.cam.updateProjectionMatrix();
     this.menu = true; this.menuT = Math.random() * 40;
+    this.billetSquad();                                             // squad back on their marks
     document.getElementById('intro-fade').style.opacity = 0;
   },
 
@@ -243,17 +293,16 @@ const Intro = {
       [-8.5, 10.5, 'mar'], [7.5, 9.5, 'mar'], [-14, 16, 'rau'], [14.5, 15, 'rau'],
       [-1.7, 13.8, 'mar'], [1.7, 13.8, 'mar'], [-5, 18.5, 'mar'], [5.5, 18, 'rau'],
       [-11, 22, 'mar'], [11, 23, 'mar'], [-3, 26.5, 'mar'], [3.2, 27, 'mar'],
-      [-17, 25, 'rau'], [16, 27, 'mar'], [-0.5, 18.3, 'mar'], [0.6, 17.7, 'mar'], // hull crew
+      [-17, 25, 'rau'], [16, 27, 'mar'], [-0.8, 16.3, 'mar'], [0.9, 16.1, 'mar'], // hull-side
     ];
     for (let i = 0; i < LINE.length; i++) {
       const [mx, mz, kind] = LINE[i];
-      const onDeck = mz > 17 && Math.abs(mx) < 2;
       const m = (kind === 'rau' ? buildMarauderMesh : buildMarineMesh)(0x4ad0ff);
-      m.position.set(mx, onDeck ? 2.3 : 0, mz);
+      m.position.set(mx, 0, mz);                               // feet on the street
       m.rotation.y = Math.PI + (Math.random() - .5) * .3;
       for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
       m.userData.fallT = 11.8 + i * .3 + Math.random() * .3;
-      m.userData.onDeck = onDeck;
+      m.userData.strafe = Math.random() < .5 ? -1 : 1;
       Enemies.scene.add(m);
       this.storyMarines.push(m);
     }
@@ -350,20 +399,6 @@ const Intro = {
         legs[li].rotation.x = Math.sin(t * 16 + e.storyPh + li) * .5;
     }
 
-    // defenders trade kills — the pack takes losses before it wins
-    if (t > 7.5 && t < 15) {
-      this.killT -= dt;
-      if (this.killT <= 0) {
-        this.killT = 0.55 + Math.random() * .4;
-        const prey = Enemies.list.filter(e => !e.sd && e.mesh.position.z > -40);
-        if (prey.length) {
-          const v = prey[Math.floor(Math.random() * prey.length)];
-          v.sd = true;
-          try { bloodBurst(v.mesh.position.clone().setY(.4), 5); } catch (e) {}
-        }
-      }
-    }
-
     // civilians scatter through the plaza — lings pull some of them down
     for (const c of this.storyCivs) {
       if (c.fell) { c.m.rotation.x += (1.5 - c.m.rotation.x) * Math.min(1, dt * 5); continue; }
@@ -383,13 +418,48 @@ const Intro = {
           }
     }
 
-    // crew get swarmed one by one — they tip over as the pack reaches them
-    for (const m of this.storyMarines) {
-      const ud = m.userData;
+    // marines fight like it's real — track nearest ling, strafe, backpedal, shoot
+    for (let mi = 0; mi < this.storyMarines.length; mi++) {
+      const m = this.storyMarines[mi], ud = m.userData;
       if (t > ud.fallT) ud.fell = true;
-      if (ud.fell) m.rotation.x += (-1.45 - m.rotation.x) * Math.min(1, dt * 4);
-      if (ud.onDeck && World.base)
-        m.position.y = 2.3 + (World.base.g.position.y - .12);   // ride the deck down
+      if (ud.fell) { m.rotation.x += (-1.45 - m.rotation.x) * Math.min(1, dt * 4); continue; }
+      // acquire closest live ling
+      let best = null, bd = 26;
+      for (const e of Enemies.list) {
+        if (e.dead || e.sd) continue;
+        const d = Math.hypot(e.mesh.position.x - m.position.x, e.mesh.position.z - m.position.z);
+        if (d < bd) { bd = d; best = e; }
+      }
+      ud.tgt = best;
+      if (best) {
+        const dx = best.mesh.position.x - m.position.x, dz = best.mesh.position.z - m.position.z;
+        m.rotation.y = Math.atan2(dx, dz);                     // square up on it
+        const fwd = bd < 5 ? -2.4 : (bd > 15 ? 1.8 : 0);       // fall back / press up
+        if (Math.random() < dt * .6) ud.strafe *= -1;
+        const side = ud.strafe * (bd < 14 ? 1.5 : .4);
+        m.position.x += (Math.sin(m.rotation.y) * fwd + Math.cos(m.rotation.y) * side) * dt;
+        m.position.z += (Math.cos(m.rotation.y) * fwd - Math.sin(m.rotation.y) * side) * dt;
+        m.position.x = Math.max(-32, Math.min(32, m.position.x));
+        m.position.z = Math.max(3, Math.min(30, m.position.z));
+        m.position.y = Math.abs(Math.sin(t * 10 + mi)) * .05;  // combat shuffle
+        // open fire on its own rhythm
+        ud.fireT = (ud.fireT || 0) - dt;
+        if (ud.fireT <= 0 && t > 6.5) {
+          ud.fireT = .22 + Math.random() * .3;
+          const nrm = Math.hypot(dx, dz) || 1;
+          const from = m.position.clone().add(new THREE.Vector3(dx / nrm * .5, 1.25, dz / nrm * .5));
+          const geo = new THREE.BufferGeometry()
+            .setFromPoints([from, best.mesh.position.clone().setY(.5)]);
+          const ln = new THREE.Line(geo, new THREE.LineBasicMaterial({
+            color: 0xffe8a0, transparent: true, opacity: .9 }));
+          Enemies.scene.add(ln);
+          this.storyFx.push({ m: ln, t: 0 });
+          if (Math.random() < .25) { try { Audio2.shot(); } catch (e) {} }
+        }
+      } else {                                                 // nothing in range — patrol a little
+        m.position.x += Math.sin(t * .8 + mi * 2.3) * dt * .6;
+        m.position.z += Math.cos(t * .7 + mi * 1.9) * dt * .6;
+      }
     }
 
     // blocks go down one by one — windows die, towers lean and sink in smoke
@@ -432,23 +502,16 @@ const Intro = {
       }
     }
 
-    // pad marines open up once the pack gets close
-    if (t > 7.5) {
-      this.fxT -= dt;
-      if (this.fxT <= 0) {
-        this.fxT = 0.22 + Math.random() * .18;
-        const standing = this.storyMarines.filter(m => !m.userData.fell);
-        const mar = standing.length && standing[Math.floor(Math.random() * standing.length)];
-        const live = Enemies.list.filter(e => !e.dead && e.mesh.position.z > -60);
-        if (mar && live.length) {
-          const tgt = live[Math.floor(Math.random() * live.length)].mesh.position;
-          const from = mar.position.clone().add(new THREE.Vector3(0, 1.3, 0.5));
-          const geo = new THREE.BufferGeometry().setFromPoints([from, tgt.clone().setY(.5)]);
-          const ln = new THREE.Line(geo, new THREE.LineBasicMaterial({
-            color: 0xffe8a0, transparent: true, opacity: .9 }));
-          Enemies.scene.add(ln);
-          this.storyFx.push({ m: ln, t: 0 });
-          try { Audio2.shot(); } catch (e) {}
+    // kills land where someone's actually aiming — victim is a shooter's target
+    if (t > 7.5 && t < 15) {
+      this.killT -= dt;
+      if (this.killT <= 0) {
+        this.killT = 0.5 + Math.random() * .35;
+        const shooters = this.storyMarines.filter(m => !m.userData.fell && m.userData.tgt);
+        if (shooters.length) {
+          const v = shooters[Math.floor(Math.random() * shooters.length)].userData.tgt;
+          v.sd = true;
+          try { bloodBurst(v.mesh.position.clone().setY(.4), 5); } catch (e) {}
         }
       }
     }
@@ -472,6 +535,7 @@ const Intro = {
     else this.cam.aspect = innerWidth / innerHeight, this.cam.updateProjectionMatrix();
     this.visiting = true; this.menu = false;
     this.suitFor(Game.unit || 'marine');                 // YOUR rig is the one on the rack
+    this.billetSquad();                                            // squad stands to
     this.vYaw = this.vYawT = Math.PI;                    // start facing the suit rack
     this.vPitch = this.vPitchT = 0;
     this.vPos.set(0, 0, 2.4); this.bobT = 0; this.vY = 0;
@@ -524,6 +588,7 @@ const Intro = {
     this.doorGlow.material.opacity = .06;
     this.outLight.intensity = 0;
     this.base.visible = true; this.base.position.y = .12;
+    this.billetSquad();                                            // squad back in ranks
     this.cam.position.set(0, 1.55, 4.6);
     this.look.set(0, 1.3, .3);
     // overlay: bars + boot lines (revealed on schedule) + skip hint
@@ -625,6 +690,7 @@ const Intro = {
       }
       if (this.core) this.core.material.emissiveIntensity =
         .3 + (this._suitHot ? 1.6 + Math.sin(t * 6) * .8 : Math.sin(t * 2) * .3 + .3);
+      this.squadUpdate(dt, t, false);
       return;
     }
     if (this.menu && !this.playing) {          // menu backdrop — drift inside the barracks
@@ -634,6 +700,7 @@ const Intro = {
         3.3 + Math.cos(t * .09) * .7);
       this.look.set(Math.sin(t * .07) * .6, 1.25, -.4 + Math.sin(t * .05) * .9);
       this.cam.lookAt(this.look);
+      this.squadUpdate(dt, t, false);                              // squad idles in ranks
       return;
     }
     if (!this.playing) return;
@@ -700,6 +767,7 @@ const Intro = {
       }
     } else this.stop();
 
+    this.squadUpdate(dt, t, t > 8.6);            // door opens — the squad files out ahead of you
     cam.lookAt(this.look);
   },
 };
