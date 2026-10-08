@@ -412,6 +412,11 @@ window.addEventListener('load', () => {
 
   renderer.domElement.addEventListener('click', canvasClick);
   document.addEventListener('pointerlockchange', () => {
+    if (Intro.visiting && !document.pointerLockElement) {   // Esc out of the tour
+      Intro.leave();
+      $id('barracks-back').classList.add('hidden');
+      $id('startscreen').classList.remove('hidden');
+    }
     const unlocked = Game.running && !document.pointerLockElement && !Pad.on && !Player.dead;
     // online rules: no pausing — the swarm keeps coming without your mouse
     Game.paused = unlocked && !Game.online;

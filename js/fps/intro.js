@@ -170,18 +170,26 @@ const Intro = {
     this.vPitch = this.vPitchT = 0;
     if (this._vMove) document.removeEventListener('mousemove', this._vMove);
     this._vMove = e => {
-      const nx = e.clientX / innerWidth * 2 - 1,
-            ny = e.clientY / innerHeight * 2 - 1;
-      this.vYawT   = Math.PI + nx * 2.1;                 // ~120° each way covers the room
-      this.vPitchT = Math.max(-0.9, Math.min(0.9, -ny * 0.9));
+      if (document.pointerLockElement) {               // locked — steer like the field
+        this.vYawT   = Math.max(Math.PI - 2.3, Math.min(Math.PI + 2.3,
+          this.vYawT - e.movementX * .0022));
+        this.vPitchT = Math.max(-0.9, Math.min(0.9, this.vPitchT - e.movementY * .0022));
+      } else {                                         // lock didn't take — map pointer pos
+        const nx = e.clientX / innerWidth * 2 - 1,
+              ny = e.clientY / innerHeight * 2 - 1;
+        this.vYawT   = Math.PI + nx * 2.1;             // ~120° each way covers the room
+        this.vPitchT = Math.max(-0.9, Math.min(0.9, -ny * 0.9));
+      }
     };
     document.addEventListener('mousemove', this._vMove);
     document.getElementById('intro-fade').style.opacity = 0;
+    Game.renderer.domElement.requestPointerLock();     // mouse locks in like the fight
   },
 
   leave() {
     this.visiting = false;
     if (this._vMove) { document.removeEventListener('mousemove', this._vMove); this._vMove = null; }
+    document.exitPointerLock && document.exitPointerLock();
     this.show();                                       // hand the camera back to the drift
   },
 
