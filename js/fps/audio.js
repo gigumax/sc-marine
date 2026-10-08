@@ -80,6 +80,32 @@ const Audio2 = {
   shotAt(d) { const v = this.vol(d); this.noise(0.08, 0.22 * v, 1700, 0.5);
               this.tone(210, 0.05, 'square', 0.07 * v, 90); },
   hitAt(d)  { const v = this.vol(d); this.tone(520, 0.07, 'triangle', 0.09 * v, 260); },
+  /* hydraulic ram — valve hiss sweeping down over a low pump rumble */
+  hydraulic() {
+    try {
+      const ctx = this.ensure(), t = ctx.currentTime;
+      const src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.Q.value = 1.1;
+      f.frequency.setValueAtTime(2600, t);
+      f.frequency.exponentialRampToValueAtTime(360, t + .6);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(.0001, t);
+      g.gain.exponentialRampToValueAtTime(.22, t + .06);   // valve cracks open
+      g.gain.exponentialRampToValueAtTime(.0001, t + .65);
+      src.connect(f); f.connect(g); g.connect(ctx.destination);
+      src.start(t); src.stop(t + .68);
+      const o = ctx.createOscillator(), og = ctx.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(52, t);
+      o.frequency.linearRampToValueAtTime(85, t + .45);   // piston loading up
+      og.gain.setValueAtTime(.0001, t);
+      og.gain.exponentialRampToValueAtTime(.11, t + .12);
+      og.gain.exponentialRampToValueAtTime(.0001, t + .58);
+      o.connect(og); og.connect(ctx.destination);
+      o.start(t); o.stop(t + .6);
+    } catch (e) {}
+  },
   radio()   { this.tone(1150, 0.04, 'square', 0.04, 1150);
               setTimeout(() => this.tone(1500, 0.05, 'square', 0.04, 1500), 60); },
 

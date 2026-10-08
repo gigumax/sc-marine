@@ -34,6 +34,27 @@ const Intro = {
     return g;
   },
 
+  fatigueMesh(accent) {                          // trooper out of armor — fatigues + squad-color cap
+    const g = new THREE.Group();
+    const fat = new THREE.MeshStandardMaterial({ color: 0x4b4f3a, roughness: .9 });
+    const skin = new THREE.MeshStandardMaterial({ color: 0xd8a880, roughness: .85 });
+    const legs = new THREE.Mesh(new THREE.CylinderGeometry(.17, .2, .72, 6),
+      new THREE.MeshStandardMaterial({ color: 0x33382b, roughness: .9 }));
+    legs.position.y = .36; g.add(legs);
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(.2, .24, .62, 7), fat);
+    torso.position.y = 1.0; g.add(torso);
+    for (const s of [-1, 1]) {
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, .5, 5), fat);
+      arm.position.set(s * .28, .98, 0); g.add(arm);
+    }
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.13, 7, 6), skin);
+    head.position.y = 1.52; g.add(head);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(.14, .145, .09, 7),
+      new THREE.MeshStandardMaterial({ color: accent, roughness: .8 }));
+    cap.position.y = 1.63; g.add(cap);
+    return g;
+  },
+
   /* ---------- one-time scene build ---------- */
   build() {
     const s = this.scene = new THREE.Scene();
@@ -153,28 +174,46 @@ const Intro = {
     ];
     for (let i = 0; i < Allies.names.length; i++) {
       const isLead = i === 0 || i === 4;                            // commanders wear marauder chassis
-      const m = (isLead ? buildMarauderMesh : buildMarineMesh)(Allies.accents[i]);
-      for (const k of ['barBg', 'barFg', 'star'])
-        if (m.userData[k]) m.userData[k].visible = false;
-      s.add(m);
+      const bare = this.fatigueMesh(Allies.accents[i]);             // at ease — armor stays racked
+      s.add(bare);
       const [sx, sz] = SLOT_POS[i];
+      const go = 9.0 + (4.1 - sz) * 0.30;                           // front rank leaves first
       this.squadList.push({
-        m, x: sx, z: sz,
+        m: bare, bare, suited: null,                                // 'suited' swaps in on deploy
+        isLead, accent: Allies.accents[i],
+        suitT: go - 0.9,                                            // armor locks right before step-off
+        x: sx, z: sz,
         ry: sx < 0 ? Math.PI / 2 : -Math.PI / 2,                    // face the aisle
         ph: Math.random() * 7,
         lane: sx < 0 ? -0.42 : 0.42,                                // file out two abreast
-        go: 9.0 + (4.1 - sz) * 0.30,                                // front rank leaves first
+        go,
       });
     }
     this.billetSquad();
   },
 
-  /* park everyone back on their billet marks */
+  /* park everyone back on their billet marks — armor goes back on the rack */
   billetSquad() {
-    for (const m of this.squadList || []) {
-      m.m.position.set(m.x, 0, m.z);
-      m.m.rotation.set(0, m.ry, 0);
-      m.m.visible = true;
+    for (const q of this.squadList || []) {
+      if (q.suited) { this.scene.remove(q.suited); q.suited = null; q.m = q.bare; }
+      q.m.position.set(q.x, 0, q.z);
+      q.m.rotation.set(0, q.ry, 0);
+      q.m.visible = true;
+    }
+  },
+
+  /* called during the deploy cinematic — rigs lock on one by one before the door */
+  suitUpSquad(t) {
+    for (const q of this.squadList) {
+      if (q.suited || t < q.suitT) continue;
+      const arm = (q.isLead ? buildMarauderMesh : buildMarineMesh)(q.accent);
+      for (const k of ['barBg', 'barFg', 'star'])
+        if (arm.userData[k]) arm.userData[k].visible = false;
+      arm.position.copy(q.m.position); arm.rotation.copy(q.m.rotation);
+      q.bare.visible = false;
+      this.scene.add(arm);
+      q.m = q.suited = arm;
+      try { Audio2.noise(.12, .07, 1000, .9); } catch (e) {}        // servo snick
     }
   },
 
@@ -317,11 +356,11 @@ const Intro = {
       this.storyMarines.push(m);
     }
 
-    // civilians loose in the streets — running, screaming, some don't make it
+    // civilians loose in the streets — a hundred screaming dots, some don't make it
     this.storyCivs = [];
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 100; i++) {
       const m = this.civMesh();
-      m.position.set((Math.random() - .5) * 88, 0, 14 + Math.random() * 40);
+      m.position.set((Math.random() - .5) * 52, 0, 2 + Math.random() * 32);
       Enemies.scene.add(m);
       this.storyCivs.push({ m, tx: 0, tz: 0, spd: 4 + Math.random() * 2.4, fell: false, ph: Math.random() * 7 });
     }
@@ -850,11 +889,8 @@ const Intro = {
       cam.position.set(0, _lz(1.55, 1.42, k), _lz(4.6, 1.15, k));
       this.look.set(0, 1.25, .25);
       fade.style.opacity = 1 - Math.min(1, t / .8);  // fade in from black
-      // chest irises open as you arrive — servo whine first
-      if (t - dt < 1.3 && t >= 1.3) {
-        Audio2.noise(.55, .18, 700, .7);
-        Audio2.tone(300, .5, 'triangle', .08, 700);
-      }
+      // chest irises open as you arrive — hydraulics crack the four corner plates
+      if (t - dt < 1.3 && t >= 1.3) Audio2.hydraulic();
       this.setChest(_ez(Math.min(1, Math.max(0, (t - 1.3) / .9))));
     } else if (t < 4.0) {                            // — step in, turn to the door —
       const k = _ez((t - 2.6) / 1.4);
@@ -895,6 +931,7 @@ const Intro = {
       }
     } else this.stop();
 
+    this.suitUpSquad(t);                         // armor slams on, one rig at a time
     this.squadUpdate(dt, t, t > 8.6);            // door opens — the squad files out ahead of you
     cam.lookAt(this.look);
   },
