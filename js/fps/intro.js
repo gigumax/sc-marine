@@ -204,55 +204,65 @@ const Intro = {
         spawnEnemy('zergling', p);
       }
     }
-    // the city — tower blocks ringing the pad, windows lit before they die
+    // the city — a real skyline: dense tower grid + distant silhouette ring
     this.storyCity = [];
-    const BLOCS = [
-      [-9, 9.5], [-5.5, 11], [7.5, 10], [11, 14.5], [-11.5, 15], [12.5, 19],
-      [-8, 24.5], [7, 25.5], [-4.5, 28.5], [4.5, 28.5], [-13, 20], [13, 24],
-    ];
-    for (const [bx, bz] of BLOCS) {
-      const h = 2.4 + Math.random() * 4.2, w = 1.8 + Math.random() * 1.5;
+    const towerAt = (bx, bz, far) => {
+      const h = far ? 5 + Math.random() * 9 : 2.5 + Math.random() * 6.5,
+        w = far ? 2.6 + Math.random() * 2 : 1.7 + Math.random() * 1.6;
       const g = new THREE.Group();
       const tower = new THREE.Mesh(new THREE.BoxGeometry(w, h, w),
-        new THREE.MeshStandardMaterial({ color: 0x232e3a, roughness: .8, metalness: .3 }));
+        new THREE.MeshStandardMaterial({ color: far ? 0x141c26 : 0x232e3a, roughness: .8, metalness: .3 }));
       tower.position.y = h / 2; g.add(tower);
       const winMat = new THREE.MeshBasicMaterial({ color: 0x64d8ff });   // lit windows
-      for (let wy = .7; wy < h - .3; wy += 1.05) {
+      if (!far) for (let wy = .7; wy < h - .3; wy += 1.05) {
         const s = new THREE.Mesh(new THREE.BoxGeometry(w * .78, .1, .02), winMat);
         s.position.set(0, wy, w / 2 + .015); g.add(s);
       }
       g.position.set(bx, 0, bz);
       Enemies.scene.add(g);
-      this.storyCity.push({ g, winMat, h, bx, bz,
-        fallT: 13.2 + Math.random() * 3.2, dir: Math.random() < .5 ? -1 : 1, fell: false });
+      // wave of ruin rolls in from the north — near blocks fall first, skyline last
+      this.storyCity.push({ g, winMat, h, bx, bz, far,
+        fallT: 12.6 + (bz + 8) / 34 * 3.4 + Math.random() * .7,
+        dir: Math.random() < .5 ? -1 : 1, fell: false });
+    };
+    for (let gx = -34; gx <= 34; gx += 6.5)
+      for (let gz = -6; gz <= 36; gz += 6.5) {
+        const bx = gx + (Math.random() - .5) * 3, bz = gz + (Math.random() - .5) * 3;
+        if (Math.abs(bx) < 5 && bz > 11 && bz < 24) continue;   // keep the pad + hull clear
+        if (Math.random() < .18) continue;                      // gaps = streets
+        towerAt(bx, bz, false);
+      }
+    for (let i = 0; i < 26; i++) {                              // skyline silhouettes
+      const a = Math.random() * Math.PI * 2, r = 42 + Math.random() * 20;
+      towerAt(Math.cos(a) * r, 16 + Math.sin(a) * r * .7, true);
     }
 
     // defenders all over the streets — marines + marauders, all doomed
     this.storyMarines = [];
     const LINE = [
-      [-5.5, 12.5, 'mar'], [4.5, 11.5, 'mar'], [-9.5, 15.5, 'rau'], [9.5, 16, 'rau'],
-      [-1.7, 13.8, 'mar'], [1.7, 13.8, 'mar'], [-0.7, 16.2, 'mar'], [0.8, 16.4, 'rau'],
-      [-7, 20.5, 'mar'], [7.5, 21, 'mar'], [-3, 25.5, 'mar'], [3.2, 26, 'mar'],
-      [-0.5, 18.3, 'mar'], [0.6, 17.7, 'mar'],                             // on the hull — doomed last
+      [-8.5, 10.5, 'mar'], [7.5, 9.5, 'mar'], [-14, 16, 'rau'], [14.5, 15, 'rau'],
+      [-1.7, 13.8, 'mar'], [1.7, 13.8, 'mar'], [-5, 18.5, 'mar'], [5.5, 18, 'rau'],
+      [-11, 22, 'mar'], [11, 23, 'mar'], [-3, 26.5, 'mar'], [3.2, 27, 'mar'],
+      [-17, 25, 'rau'], [16, 27, 'mar'], [-0.5, 18.3, 'mar'], [0.6, 17.7, 'mar'], // hull crew
     ];
     for (let i = 0; i < LINE.length; i++) {
       const [mx, mz, kind] = LINE[i];
-      const onDeck = mz > 17;
+      const onDeck = mz > 17 && Math.abs(mx) < 2;
       const m = (kind === 'rau' ? buildMarauderMesh : buildMarineMesh)(0x4ad0ff);
       m.position.set(mx, onDeck ? 2.3 : 0, mz);
       m.rotation.y = Math.PI + (Math.random() - .5) * .3;
       for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
-      m.userData.fallT = 11.8 + i * .34 + Math.random() * .3;
+      m.userData.fallT = 11.8 + i * .3 + Math.random() * .3;
       m.userData.onDeck = onDeck;
       Enemies.scene.add(m);
       this.storyMarines.push(m);
     }
 
-    // civilians loose in the plaza — running, screaming, some don't make it
+    // civilians loose in the streets — running, screaming, some don't make it
     this.storyCivs = [];
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 14; i++) {
       const m = this.civMesh();
-      m.position.set((Math.random() - .5) * 16, 0, 8 + Math.random() * 18);
+      m.position.set((Math.random() - .5) * 36, 0, 4 + Math.random() * 28);
       Enemies.scene.add(m);
       this.storyCivs.push({ m, tx: 0, tz: 0, spd: 4 + Math.random() * 2.4, fell: false, ph: Math.random() * 7 });
     }
@@ -291,7 +301,7 @@ const Intro = {
       [11.5, -14,  9, -30,     0, 3, 14],    // over the rooftops, wave rolls in
       [14.0,  9,  5,  30,      0, 2, 16],    // street-level battle
       [16.4,  5,  2.8, 24,     0, 1.4, 17],  // close on the burn
-      [18.4,  6,  9,  32,      0, 2, 16],    // pull back over the burning city
+      [18.4,  12, 14, 42,      0, 2, 14],    // pull back over the burning skyline
     ];
     let i = 0;
     while (i < KS.length - 2 && t >= KS[i + 1][0]) i++;
@@ -359,7 +369,7 @@ const Intro = {
       if (c.fell) { c.m.rotation.x += (1.5 - c.m.rotation.x) * Math.min(1, dt * 5); continue; }
       const cp = c.m.position;
       const dd = Math.hypot(c.tx - cp.x, c.tz - cp.z);
-      if (dd < .6 || !c.tx) { c.tx = (Math.random() - .5) * 20; c.tz = 6 + Math.random() * 22; }
+      if (dd < .6 || !c.tx) { c.tx = (Math.random() - .5) * 38; c.tz = 4 + Math.random() * 30; }
       cp.x += (c.tx - cp.x) / dd * c.spd * dt;
       cp.z += (c.tz - cp.z) / dd * c.spd * dt;
       cp.y = Math.abs(Math.sin(t * 12 + c.ph)) * .07;          // panicked scamper
@@ -391,8 +401,8 @@ const Intro = {
       }
       if (B.fell) {
         const k = Math.min(1, (t - B.fallT) / 1.8);
-        B.g.rotation.z = B.dir * _ez(k) * .22;
-        B.g.position.y = -_ez(k) * (B.h * .45);
+        B.g.rotation.z = B.dir * _ez(k) * (B.far ? .14 : .22);
+        B.g.position.y = -_ez(k) * (B.h * (B.far ? .55 : .45));
       }
     }
     // fires + smoke over whatever has fallen
