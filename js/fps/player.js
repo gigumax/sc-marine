@@ -212,7 +212,7 @@ function movePlayer(dt, moveX, moveZ, sprint) {
   let dx = moveX * cos + moveZ * sin;
   let dz = -moveX * sin + moveZ * cos;
   const len = Math.hypot(dx, dz);
-  const speed = (sprint ? 9.2 : 6.0) * (Player.aiming ? 0.55 : 1);
+  const speed = (sprint ? 9.2 : 6.0) * (Player.ads ? 0.55 : 1);   // only scoped-in slows you
   if (len > 0) { dx /= len; dz /= len; }
 
   const res = worldCollide(
