@@ -727,6 +727,32 @@ const Intro = {
         }
       }
     }
+
+    /* ---- the war has a voice: rumble bed, the wall's volleys, swarm cries ---- */
+    this.sAmb -= dt;
+    if (this.sAmb <= 0 && t < 21.5) {
+      this.sAmb = 1.6 + Math.random();
+      try {
+        Audio2.noise(2.4, .10, 65, .4);                    // burning-city rumble
+        Audio2.tone(36, 2.1, 'sine', .07, 28);
+      } catch (e) {}
+    }
+    this.sGun -= dt;
+    if (this.sGun <= 0 && t > 5.5 && t < 20.5) {
+      const live = this.storyMarines.some(m => !m.userData.fell);
+      this.sGun = live ? 0.08 + Math.random() * .10 : .45;
+      if (live) try {
+        Audio2.shotAt(12 + Math.random() * 18);            // rifle cracks downrange
+        if (Math.random() < .16) Audio2.shotBig();         // marauder grenade-thud
+        if (Math.random() < .28) Audio2.kill(16 + Math.random() * 26);
+      } catch (e) {}
+    }
+    this.sScr -= dt;
+    if (this.sScr <= 0 && t > 2 && t < 22) {
+      this.sScr = .45 + Math.random() * 1.1;
+      try { Audio2.screech(14 + Math.random() * 42); } catch (e) {}
+    }
+
     for (const x of this.storyFx) {
       x.t += dt;
       if (x.vy) x.m.position.y += x.vy * dt;
