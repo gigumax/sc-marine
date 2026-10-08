@@ -17,6 +17,8 @@ const Intro = {
   vPos: new THREE.Vector3(0, 0, 2.4), bobT: 0, vY: 0, stepT: 0,
   _vMove: null, _vClick: null, _vRay: null, _vNdc: null,
   _suitHot: false, onSuitTap: null,
+  // opening story — flies the REAL map while eggs hatch and the pack runs
+  story: false, storyT: 0, storyCam: null, storyMarines: [], storyFx: [], fxT: 0,
 
   /* ---------- one-time scene build ---------- */
   build() {
@@ -165,7 +167,123 @@ const Intro = {
     document.getElementById('intro-fade').style.opacity = 0;
   },
 
-  active() { return this.playing || this.menu || this.visiting; },
+  active() { return this.playing || this.menu || this.visiting || this.story; },
+
+  /* ---------- opening story — the assault, no words ---------- */
+  playStory(cb) {
+    if (!this.storyCam)
+      this.storyCam = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .1, 2000);
+    else this.storyCam.aspect = innerWidth / innerHeight, this.storyCam.updateProjectionMatrix();
+    this.story = true; this.storyT = 0; this.fxT = 0; this.cb = cb; this.armed = false;
+    document.getElementById('startscreen').classList.add('hidden');
+    document.getElementById('storyscreen').classList.remove('hidden');
+    document.getElementById('story-text').style.display = 'none';   // no words
+    document.getElementById('story-skip').textContent = 'TAP ANYWHERE TO SKIP \u25B8';
+    const f = document.getElementById('intro-fade');
+    f.style.background = '#000'; f.style.opacity = 1;
+    // eggs already warm — the swarm starts hatching almost at once
+    for (const s of World.spawners)
+      for (const eg of s.eggs) eg.t = EGG_T * (0.35 + Math.random() * 0.8);
+    // guaranteed burst at the two southern hives the camera visits
+    for (const s of World.spawners.slice(2)) {
+      for (let i = 0; i < 6; i++) {
+        const p = s.pos.clone();
+        p.x += (Math.random() - .5) * 7; p.z += (Math.random() - .5) * 7;
+        spawnEnemy('zergling', p);
+      }
+    }
+    // marines dug in on the pad — muzzle flashes once the swarm closes
+    for (const mx of [-1.6, 0, 1.6]) {
+      const m = buildMarineMesh(0x4ad0ff);
+      m.position.set(mx, 0, 14.5 - Math.abs(mx));
+      m.rotation.y = Math.PI;                             // face the oncoming north
+      for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
+      const gun = m.children.find(c => c.isGroup); if (gun) gun.position.z += 0.1;
+      Enemies.scene.add(m);
+      this.storyMarines.push(m);
+    }
+    try { Audio2.ensure && Audio2.ensure(); } catch (e) {}
+    this._skip = () => { if (this.armed) this.stop(); };
+    setTimeout(() => { this.armed = true; }, 900);
+    document.addEventListener('keydown', this._skip);
+    document.addEventListener('mousedown', this._skip);
+  },
+
+  storyUpdate(dt) {
+    const t = this.storyT += dt, cam = this.storyCam;
+    const f = document.getElementById('intro-fade');
+    if (t < 1.1) f.style.opacity = 1 - t / 1.1;           // fade in from black
+    else if (t > 11.6) {                                 // white-out into the roster
+      f.style.background = '#fff';
+      f.style.opacity = Math.min(1, (t - 11.6) / .7);
+    }
+
+    // keyframed aerial — over the nest, chase the pack south, end on the pad
+    const KS = [
+      [0.0, -70, 34, -205,   -70, 2, -258],
+      [4.0, -72, 11, -228,   -70, 1, -260],
+      [8.0, -56,  7, -150,   -20, 2, -80],
+      [11.0,  9,  6,  34,      0, 1.6, 18],
+      [12.4,  9,  6,  34,      0, 1.6, 18],
+    ];
+    let i = 0;
+    while (i < KS.length - 2 && t >= KS[i + 1][0]) i++;
+    const a = KS[i], b = KS[i + 1], k = _ez(Math.min(1, (t - a[0]) / (b[0] - a[0])));
+    cam.position.set(_lz(a[1], b[1], k), _lz(a[2], b[2], k), _lz(a[3], b[3], k));
+    this.look.set(_lz(a[4], b[4], k), _lz(a[5], b[5], k), _lz(a[6], b[6], k));
+    cam.lookAt(this.look);
+
+    // hives keep cooking while the camera flies
+    if (t > 0.5) try { updateSpawners(dt); } catch (e) {}
+
+    // every ling on the field charges the pad — scuttle bob + leg flail
+    for (const e of Enemies.list) {
+      if (e.dead) continue;
+      if (e.storyTgt === undefined) {
+        e.storyTgt = { x: (Math.random() - .5) * 8, z: 14 + Math.random() * 4 };
+        e.storySpd = 20 + Math.random() * 10;
+        e.storyPh  = Math.random() * 7;
+      }
+      const mp = e.mesh.position;
+      const dx = e.storyTgt.x - mp.x, dz = e.storyTgt.z - mp.z, d = Math.hypot(dx, dz);
+      if (d > 2) {
+        mp.x += dx / d * e.storySpd * dt;
+        mp.z += dz / d * e.storySpd * dt;
+        e.mesh.rotation.y = Math.atan2(dx, dz);
+      }
+      mp.y = Math.abs(Math.sin(t * 14 + e.storyPh)) * .12;
+      const legs = e.mesh.userData.legs || [];
+      for (let li = 0; li < legs.length; li++)
+        legs[li].rotation.x = Math.sin(t * 16 + e.storyPh + li) * .5;
+    }
+
+    // pad marines open up once the pack gets close
+    if (t > 7.5) {
+      this.fxT -= dt;
+      if (this.fxT <= 0) {
+        this.fxT = 0.22 + Math.random() * .18;
+        const mar = this.storyMarines[Math.floor(Math.random() * this.storyMarines.length)];
+        const live = Enemies.list.filter(e => !e.dead && e.mesh.position.z > -60);
+        if (mar && live.length) {
+          const tgt = live[Math.floor(Math.random() * live.length)].mesh.position;
+          const from = mar.position.clone().add(new THREE.Vector3(0, 1.3, 0.5));
+          const geo = new THREE.BufferGeometry().setFromPoints([from, tgt.clone().setY(.5)]);
+          const ln = new THREE.Line(geo, new THREE.LineBasicMaterial({
+            color: 0xffe8a0, transparent: true, opacity: .9 }));
+          Enemies.scene.add(ln);
+          this.storyFx.push({ m: ln, t: 0 });
+          try { Audio2.shot(); } catch (e) {}
+        }
+      }
+    }
+    for (const x of this.storyFx) {
+      x.t += dt; x.m.material.opacity = .9 * (1 - x.t / .1);
+      if (x.t > .1) { Enemies.scene.remove(x.m); x.done = true; }
+    }
+    this.storyFx = this.storyFx.filter(x => !x.done);
+
+    if (t >= 12.4) this.stop();
+  },
 
   /* walk in and look around — mouse steers the head, no pointer lock */
   visit() {
@@ -232,6 +350,8 @@ const Intro = {
     // overlay: bars + boot lines (revealed on schedule) + skip hint
     const st = document.getElementById('storyscreen');
     st.classList.remove('hidden');
+    document.getElementById('story-text').style.display = '';
+    document.getElementById('story-skip').textContent = 'CLICK OR PRESS ANY KEY TO DEPLOY \u25B8';
     document.querySelectorAll('.st-line').forEach(l => l.style.opacity = 0);
     document.getElementById('intro-visor').style.opacity = 0;
     const f = document.getElementById('intro-fade');
@@ -245,7 +365,14 @@ const Intro = {
   },
 
   stop() {
-    this.playing = false; this.menu = false; this.visiting = false;
+    this.playing = false; this.menu = false; this.visiting = false; this.story = false;
+    for (const m of this.storyMarines) Enemies.scene.remove(m);   // pad set-dressing
+    for (const x of this.storyFx) Enemies.scene.remove(x.m);
+    this.storyMarines = []; this.storyFx = [];
+    if (Enemies.list.length) {                                   // story extras — fresh field for the game
+      for (const e of Enemies.list) Enemies.scene.remove(e.mesh);
+      Enemies.list = [];
+    }
     document.removeEventListener('keydown', this._skip);
     document.removeEventListener('mousedown', this._skip);
     if (this._vMove) document.removeEventListener('mousemove', this._vMove);
@@ -263,6 +390,7 @@ const Intro = {
   },
 
   update(dt) {
+    if (this.story) { this.storyUpdate(dt); return; }
     if (this.visiting) {                     // free-look visit — head follows the mouse
       this.menuT += dt;
       const t = this.menuT;

@@ -182,8 +182,8 @@ function pollPad(dt) {
   if (once(0)) tryJump();                            // A
   if (once(9)) {                                     // Start
     if (Player.dead || Game.won) restart();
-    else if (!Game.running && !Intro.playing && Intro.visiting) deployFromBarracks();
-    else if (!Game.running && !Intro.playing && !Intro.visiting
+    else if (!Game.running && !Intro.playing && !Intro.story && Intro.visiting) deployFromBarracks();
+    else if (!Game.running && !Intro.playing && !Intro.story && !Intro.visiting
              && $id('lobbyscreen').classList.contains('hidden')) {
       enterBarracks();
     }
@@ -479,14 +479,15 @@ window.addEventListener('load', () => {
     cam.aspect = innerWidth / innerHeight;
     cam.updateProjectionMatrix();
     if (Intro.cam) { Intro.cam.aspect = cam.aspect; Intro.cam.updateProjectionMatrix(); }
+    if (Intro.storyCam) { Intro.storyCam.aspect = cam.aspect; Intro.storyCam.updateProjectionMatrix(); }
   });
   // Enter also starts
   window.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !Game.running && (Player.dead || Game.won)) restart();
-    else if (e.key === 'Enter' && !Game.running && !Intro.playing && Intro.visiting) {
+    else if (e.key === 'Enter' && !Game.running && !Intro.playing && !Intro.story && Intro.visiting) {
       deployFromBarracks();
     }
-    else if (e.key === 'Enter' && !Game.running && !Intro.playing && !Intro.visiting
+    else if (e.key === 'Enter' && !Game.running && !Intro.playing && !Intro.story && !Intro.visiting
              && $id('lobbyscreen').classList.contains('hidden')) {
       enterBarracks();
     }
@@ -494,7 +495,10 @@ window.addEventListener('load', () => {
 
   // #auto → jump straight into a solo match (headless/debug hook)
   if (location.hash === '#auto') startGame(false);
-  else Intro.show();                                 // menu lives inside the base
+  else Intro.playStory(() => {
+    Intro.show();                                     // aerial done — drift in the barracks
+    $id('startscreen').classList.remove('hidden');
+  });                                 // menu lives inside the base
 
   let last = performance.now();
   function loop(t) {
@@ -566,8 +570,8 @@ window.addEventListener('load', () => {
 
     Intro.update(dt);                                  // cinematic + menu backdrop tick
     const ix = Intro.active() && !Game.running;        // menu & cinematic share the intro scene
-    renderer.render(ix ? Intro.scene : scene,
-                    ix ? Intro.cam : cam);
+    renderer.render(Intro.story ? scene : (ix ? Intro.scene : scene),
+                    Intro.story ? Intro.storyCam : (ix ? Intro.cam : cam));
   }
   requestAnimationFrame(loop);
 });

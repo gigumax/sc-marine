@@ -482,7 +482,7 @@ function buildMarauderMesh(accent) {
 }
 
 /* ---------- squad lifecycle ---------- */
-/* one marine joins the list — used by spawnAllies and dropship reinforcements */
+/* one marine joins the list — used by spawnAllies */
 function mkAlly(idx, name, accent, leader, mesh, slot, at) {
   mesh.position.copy(at);
   mesh.rotation.y = Player.yaw;
@@ -528,36 +528,6 @@ function spawnAllies() {
                         Player.pos.z - sl.x * sin + sl.z * cos));
   }
   buildSquadHud();
-}
-
-/* ---------- dropship reinforcements — the orange cube calls in a fireteam ---------- */
-const EXTRA_NAMES = ['MARTINEZ', 'CHEN', 'OKAFOR', 'SILVA', 'KOVA',
-                     'PETROV', 'REYES', 'NGUYEN', 'HALE', 'MORROW'];
-let _reinfSeq = 0;                                  // names beyond the roster
-
-function spawnReinforcements(n, at) {
-  if (Net.on || !Game.running) return;             // AI marines are solo-only
-  const c = at || Player.pos;
-  for (let i = 0; i < n; i++) {
-    const idx = Allies.list.length;                // monotonic — HUD chips stay unique
-    const accent = Allies.accents[idx % Allies.accents.length];
-    // extras beyond the baked wedge get a rear-rank slot
-    const ex = Math.max(0, idx - Allies.slots.length);
-    const sl = idx < Allies.slots.length ? Allies.slots[idx]
-      : { x: ((ex % 5) - 2) * 2.8, z: 8.6 + Math.floor(ex / 5) * 1.8 };
-    const k = _reinfSeq + i;
-    const cyc = Math.floor(k / EXTRA_NAMES.length);
-    const name = EXTRA_NAMES[k % EXTRA_NAMES.length] + (cyc ? '-' + (cyc + 1) : '');
-    const ang = i / n * Math.PI * 2;
-    mkAlly(idx, name, '#' + accent.toString(16).padStart(6, '0'), false,
-      buildMarineMesh(accent), sl,
-      new THREE.Vector3(c.x + Math.sin(ang) * 1.8, 0, c.z + Math.cos(ang) * 1.8));
-  }
-  _reinfSeq += n;
-  buildSquadHud();
-  const voice = Allies.list[Allies.list.length - n];
-  allySay(voice, '"Five boots on the ground — where\'s the fight, sir?"', true);
-  Audio2.wave();                                   // deep whoomp — feels like a drop-in
 }
 
 function clearAllies() {
