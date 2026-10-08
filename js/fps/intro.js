@@ -19,7 +19,18 @@ const Intro = {
   _suitHot: false, onSuitTap: null,
   // opening story — flies the REAL map while eggs hatch and the pack runs
   story: false, storyT: 0, storyCam: null, storyMarines: [], storyFx: [], fxT: 0,
-  storyFire: null, smokeT: 0, _boomed: false,
+  storyFire: null, smokeT: 0, _boomed: false, storyCity: [], storyCivs: [], killT: 0,
+
+  civMesh() {                                    // tiny panicked citizen
+    const g = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(.12, .16, .6, 5),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), .45, .5), roughness: .9 }));
+    b.position.y = .44; g.add(b);
+    const h = new THREE.Mesh(new THREE.SphereGeometry(.11, 6, 5),
+      new THREE.MeshStandardMaterial({ color: 0xd8a880, roughness: .9 }));
+    h.position.y = .84; g.add(h);
+    return g;
+  },
 
   /* ---------- one-time scene build ---------- */
   build() {
@@ -193,21 +204,57 @@ const Intro = {
         spawnEnemy('zergling', p);
       }
     }
-    // people at the base — firing line on the pad, hands at the skirt, two on deck
-    const CREW = [
-      [-1.7, 0, 13.8, 12.4], [1.7, 0, 13.8, 12.9],       // firing line
-      [-0.7, 0, 16.4, 11.6], [0.8, 0, 16.2, 12.0],       // right at the skirt
-      [-0.5, 2.3, 18.3, 13.6], [0.6, 2.3, 17.7, 14.1],   // up on the deck
+    // the city — tower blocks ringing the pad, windows lit before they die
+    this.storyCity = [];
+    const BLOCS = [
+      [-9, 9.5], [-5.5, 11], [7.5, 10], [11, 14.5], [-11.5, 15], [12.5, 19],
+      [-8, 24.5], [7, 25.5], [-4.5, 28.5], [4.5, 28.5], [-13, 20], [13, 24],
     ];
+    for (const [bx, bz] of BLOCS) {
+      const h = 2.4 + Math.random() * 4.2, w = 1.8 + Math.random() * 1.5;
+      const g = new THREE.Group();
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(w, h, w),
+        new THREE.MeshStandardMaterial({ color: 0x232e3a, roughness: .8, metalness: .3 }));
+      tower.position.y = h / 2; g.add(tower);
+      const winMat = new THREE.MeshBasicMaterial({ color: 0x64d8ff });   // lit windows
+      for (let wy = .7; wy < h - .3; wy += 1.05) {
+        const s = new THREE.Mesh(new THREE.BoxGeometry(w * .78, .1, .02), winMat);
+        s.position.set(0, wy, w / 2 + .015); g.add(s);
+      }
+      g.position.set(bx, 0, bz);
+      Enemies.scene.add(g);
+      this.storyCity.push({ g, winMat, h, bx, bz,
+        fallT: 13.2 + Math.random() * 3.2, dir: Math.random() < .5 ? -1 : 1, fell: false });
+    }
+
+    // defenders all over the streets — marines + marauders, all doomed
     this.storyMarines = [];
-    for (const [mx, my, mz, ft] of CREW) {
-      const m = buildMarineMesh(0x4ad0ff);
-      m.position.set(mx, my, mz);
+    const LINE = [
+      [-5.5, 12.5, 'mar'], [4.5, 11.5, 'mar'], [-9.5, 15.5, 'rau'], [9.5, 16, 'rau'],
+      [-1.7, 13.8, 'mar'], [1.7, 13.8, 'mar'], [-0.7, 16.2, 'mar'], [0.8, 16.4, 'rau'],
+      [-7, 20.5, 'mar'], [7.5, 21, 'mar'], [-3, 25.5, 'mar'], [3.2, 26, 'mar'],
+      [-0.5, 18.3, 'mar'], [0.6, 17.7, 'mar'],                             // on the hull — doomed last
+    ];
+    for (let i = 0; i < LINE.length; i++) {
+      const [mx, mz, kind] = LINE[i];
+      const onDeck = mz > 17;
+      const m = (kind === 'rau' ? buildMarauderMesh : buildMarineMesh)(0x4ad0ff);
+      m.position.set(mx, onDeck ? 2.3 : 0, mz);
       m.rotation.y = Math.PI + (Math.random() - .5) * .3;
       for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
-      m.userData.fallT = ft; m.userData.onDeck = my > 0;
+      m.userData.fallT = 11.8 + i * .34 + Math.random() * .3;
+      m.userData.onDeck = onDeck;
       Enemies.scene.add(m);
       this.storyMarines.push(m);
+    }
+
+    // civilians loose in the plaza — running, screaming, some don't make it
+    this.storyCivs = [];
+    for (let i = 0; i < 9; i++) {
+      const m = this.civMesh();
+      m.position.set((Math.random() - .5) * 16, 0, 8 + Math.random() * 18);
+      Enemies.scene.add(m);
+      this.storyCivs.push({ m, tx: 0, tz: 0, spd: 4 + Math.random() * 2.4, fell: false, ph: Math.random() * 7 });
     }
     if (World.base) {                                    // wreck state + fire light
       World.base.g.rotation.set(0, 0, 0); World.base.g.position.y = .12;
@@ -215,7 +262,7 @@ const Intro = {
       this.storyFire.position.set(0, 1.6, 18);
       Enemies.scene.add(this.storyFire);
     }
-    this.smokeT = 0; this._boomed = false;
+    this.smokeT = 0; this._boomed = false; this.killT = 0;
     const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
     try { Audio2.ensure && Audio2.ensure(); } catch (e) {}
     this._skip = () => { if (this.armed) this.stop(); };
@@ -228,23 +275,23 @@ const Intro = {
     const t = this.storyT += dt, cam = this.storyCam;
     const f = document.getElementById('intro-fade');
     if (t < 1.1) f.style.opacity = 1 - t / 1.1;           // fade in from black
-    else if (t > 15.4) {                                 // base gone — fade to black
+    else if (t > 17.0) {                                 // city gone — fade to black
       f.style.background = '#000';
-      f.style.opacity = Math.min(1, (t - 15.4) / .7);
+      f.style.opacity = Math.min(1, (t - 17.0) / .7);
     }
     const ttl = document.getElementById('story-title');  // DEFEND MANKIND on the black
     if (ttl) ttl.style.opacity =
-      Math.max(0, Math.min(1, (t - 16.0) / .9)) * (t > 17.3 ? Math.max(0, 1 - (t - 17.3) / .6) : 1);
+      Math.max(0, Math.min(1, (t - 17.6) / .9)) * (t > 18.9 ? Math.max(0, 1 - (t - 18.9) / .6) : 1);
 
-    // keyframed aerial — over the nest, chase the pack south, end on the pad
+    // keyframed aerial — nest, swarm charge, over the rooftops, city burns
     const KS = [
       [0.0, -70, 34, -205,   -70, 2, -258],
       [4.0, -72, 11, -228,   -70, 1, -260],
       [8.0, -56,  7, -150,   -20, 2, -80],
-      [11.0,  9,  6,  34,      0, 1.6, 18],
-      [13.4,  6,  4,  27,      0, 1.4, 18],   // push in — swarm piles the hull
-      [15.4,  4,  2.6, 24,     0, 1.0, 18],   // close on the wreck
-      [17.4,  5,  8,  30,      0, 1.5, 18],   // rise over the burn
+      [11.5, -14,  9, -30,     0, 3, 14],    // over the rooftops, wave rolls in
+      [14.0,  9,  5,  30,      0, 2, 16],    // street-level battle
+      [16.4,  5,  2.8, 24,     0, 1.4, 17],  // close on the burn
+      [18.4,  6,  9,  32,      0, 2, 16],    // pull back over the burning city
     ];
     let i = 0;
     while (i < KS.length - 2 && t >= KS[i + 1][0]) i++;
@@ -254,7 +301,7 @@ const Intro = {
     cam.lookAt(this.look);
 
     // hives keep cooking while the camera flies
-    if (t > 0.5) try { updateSpawners(dt); } catch (e) {}
+    if (t > 0.5) try { updateSpawners(dt); updateGibs(dt); } catch (e) {}
 
     // every ling on the field charges the pad — scuttle bob + leg flail
     for (const e of Enemies.list) {
@@ -263,27 +310,67 @@ const Intro = {
         e.storyTgt = { x: (Math.random() - .5) * 8, z: 14 + Math.random() * 4 };
         e.storySpd = 20 + Math.random() * 10;
         e.storyPh  = Math.random() * 7;
+        e.storyBld = Math.floor(Math.random() * (this.storyCity.length || 1));
         e.storyJx  = Math.random() - .5;
       }
-      if (t > 10.5) {                                    // swarm converges ON the base
-        e.storyTgt.x = e.storyJx * 4.4;
-        e.storyTgt.z = 18 + e.storyJx * 3;
-      }
       const mp = e.mesh.position;
+      if (e.sd) {                                        // shot dead — keel over, stay down
+        e.mesh.rotation.x += (1.5 - e.mesh.rotation.x) * Math.min(1, dt * 6);
+        mp.y += (-0.05 - mp.y) * Math.min(1, dt * 4);
+        continue;
+      }
+      if (t > 10.5) {                                    // swarm breaks up over the city blocks
+        const B = this.storyCity[e.storyBld];
+        if (B) { e.storyTgt.x = B.bx + e.storyJx * 3; e.storyTgt.z = B.bz + (Math.random() - .5) * 3; }
+        else { e.storyTgt.x = e.storyJx * 4.4; e.storyTgt.z = 18 + e.storyJx * 3; }
+      }
       const dx = e.storyTgt.x - mp.x, dz = e.storyTgt.z - mp.z, d = Math.hypot(dx, dz);
-      if (d > 2.2) {
+      if (d > 1.8) {
         mp.x += dx / d * e.storySpd * dt;
         mp.z += dz / d * e.storySpd * dt;
         e.mesh.rotation.y = Math.atan2(dx, dz);
-        mp.y = Math.abs(Math.sin(t * 14 + e.storyPh)) * .12;
-      } else {                                           // arrived — climb and scrabble the hull
-        mp.y += ((1.0 + (e.storyPh % 1) * .9) - mp.y) * Math.min(1, dt * 3);
+        mp.y = Math.abs(Math.sin(t * 14 + e.storyPh)) * .12;   // grounded scuttle
+      } else {                                           // scrabble at the walls — feet stay down
+        mp.y += (.18 - mp.y) * Math.min(1, dt * 4);
         mp.x += Math.sin(t * 3 + e.storyPh) * dt * .5;
         mp.z += Math.cos(t * 2.4 + e.storyPh) * dt * .4;
       }
       const legs = e.mesh.userData.legs || [];
       for (let li = 0; li < legs.length; li++)
         legs[li].rotation.x = Math.sin(t * 16 + e.storyPh + li) * .5;
+    }
+
+    // defenders trade kills — the pack takes losses before it wins
+    if (t > 7.5 && t < 15) {
+      this.killT -= dt;
+      if (this.killT <= 0) {
+        this.killT = 0.55 + Math.random() * .4;
+        const prey = Enemies.list.filter(e => !e.sd && e.mesh.position.z > -40);
+        if (prey.length) {
+          const v = prey[Math.floor(Math.random() * prey.length)];
+          v.sd = true;
+          try { bloodBurst(v.mesh.position.clone().setY(.4), 5); } catch (e) {}
+        }
+      }
+    }
+
+    // civilians scatter through the plaza — lings pull some of them down
+    for (const c of this.storyCivs) {
+      if (c.fell) { c.m.rotation.x += (1.5 - c.m.rotation.x) * Math.min(1, dt * 5); continue; }
+      const cp = c.m.position;
+      const dd = Math.hypot(c.tx - cp.x, c.tz - cp.z);
+      if (dd < .6 || !c.tx) { c.tx = (Math.random() - .5) * 20; c.tz = 6 + Math.random() * 22; }
+      cp.x += (c.tx - cp.x) / dd * c.spd * dt;
+      cp.z += (c.tz - cp.z) / dd * c.spd * dt;
+      cp.y = Math.abs(Math.sin(t * 12 + c.ph)) * .07;          // panicked scamper
+      c.m.rotation.y = Math.atan2(c.tx - cp.x, c.tz - cp.z);
+      if (t > 10)
+        for (const e of Enemies.list)
+          if (!e.sd && Math.hypot(e.mesh.position.x - cp.x, e.mesh.position.z - cp.z) < 1.1) {
+            c.fell = true;
+            try { bloodBurst(cp.clone().setY(.4), 4); } catch (e) {}
+            break;
+          }
     }
 
     // crew get swarmed one by one — they tip over as the pack reaches them
@@ -295,22 +382,41 @@ const Intro = {
         m.position.y = 2.3 + (World.base.g.position.y - .12);   // ride the deck down
     }
 
-    // the base burns and lists over — there were people inside
-    if (t > 12.8 && World.base) {
-      const g = World.base.g, k = Math.min(1, (t - 12.8) / 2.6);
-      g.rotation.z = _ez(k) * .34;
-      g.position.y = .12 - _ez(k) * .7;
+    // blocks go down one by one — windows die, towers lean and sink in smoke
+    for (const B of this.storyCity) {
+      if (!B.fell && t > B.fallT) {
+        B.fell = true;
+        B.winMat.color.setHex(0x1a1208);                   // lights out
+        try { Audio2.noise(1.4, .5, 90, .6); } catch (e) {}
+      }
+      if (B.fell) {
+        const k = Math.min(1, (t - B.fallT) / 1.8);
+        B.g.rotation.z = B.dir * _ez(k) * .22;
+        B.g.position.y = -_ez(k) * (B.h * .45);
+      }
+    }
+    // fires + smoke over whatever has fallen
+    if (t > 12.8) {
       if (this.storyFire) this.storyFire.intensity = 2 + Math.random() * 3.5;
       if (t > 13 && !this._boomed) {
         this._boomed = true;
         try { Audio2.noise(1.4, .5, 90, .6); } catch (e) {}
       }
+      if (World.base) {
+        const g = World.base.g, k = Math.min(1, (t - 12.8) / 2.6);
+        g.rotation.z = _ez(k) * .34;
+        g.position.y = .12 - _ez(k) * .7;
+      }
       this.smokeT -= dt;
       if (this.smokeT <= 0) {
-        this.smokeT = .1;
+        this.smokeT = .12;
+        const src = this.storyCity.filter(b => b.fell);
+        const at = src.length ? src[Math.floor(Math.random() * src.length)] : null;
         const p = new THREE.Mesh(new THREE.SphereGeometry(.5, 5, 4),
           new THREE.MeshBasicMaterial({ color: 0x140f0b, transparent: true, opacity: .55 }));
-        p.position.set((Math.random() - .5) * 2, 1.7 + Math.random(), 18 + (Math.random() - .5) * 2);
+        p.position.set((at ? at.bx : 0) + (Math.random() - .5) * 2,
+          (at ? Math.max(.5, at.g.position.y + at.h) : 1.7) + Math.random(),
+          (at ? at.bz : 18) + (Math.random() - .5) * 2);
         Enemies.scene.add(p);
         this.storyFx.push({ m: p, t: 0, ttl: 2.3, op: .55, vy: 1.7, grow: 1.1 });
       }
@@ -345,7 +451,7 @@ const Intro = {
     }
     this.storyFx = this.storyFx.filter(x => !x.done);
 
-    if (t >= 18.2) this.stop();
+    if (t >= 19.4) this.stop();
   },
 
   /* walk in and look around — mouse steers the head, no pointer lock */
@@ -433,6 +539,9 @@ const Intro = {
     for (const x of this.storyFx) Enemies.scene.remove(x.m);
     this.storyMarines = []; this.storyFx = [];
     if (this.storyFire) { Enemies.scene.remove(this.storyFire); this.storyFire = null; }
+    for (const B of this.storyCity) Enemies.scene.remove(B.g);
+    for (const c of this.storyCivs) Enemies.scene.remove(c.m);
+    this.storyCity = []; this.storyCivs = [];
     if (World.base) { World.base.g.rotation.set(0, 0, 0); World.base.g.position.y = .12; }
     const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
     if (Enemies.list.length) {                                   // story extras — fresh field for the game
