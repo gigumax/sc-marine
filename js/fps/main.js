@@ -160,7 +160,7 @@ function pollPad(dt) {
   if (once(0)) tryJump();                            // A
   if (once(9)) {                                     // Start
     if (Player.dead || Game.won) restart();
-    else if (!Game.running && $id('lobbyscreen').classList.contains('hidden')) {
+    else if (!Game.running && !Intro.playing && $id('lobbyscreen').classList.contains('hidden')) {
       Net.on = false; startGame();
     }
   }
@@ -239,12 +239,15 @@ function startGame(online) {
   canvasClick();
 }
 
-// ONLINE — pick a named world; everyone on the same world drops together
+// ONLINE — suit-up cinematic first, then pick a named world;
+// everyone on the same world drops together
 function startOnline() {
-  if (Net.chan || Net.on) return;               // already in
+  if (Net.chan || Net.on || Intro.playing) return;   // already in
   $id('startscreen').classList.add('hidden');
-  $id('lobbyscreen').classList.remove('hidden');
-  Net.lobby('PICK A WORLD');
+  Intro.play(() => {
+    $id('lobbyscreen').classList.remove('hidden');
+    Net.lobby('PICK A WORLD');
+  });
 }
 
 function joinWorld(w) {
@@ -421,11 +424,13 @@ window.addEventListener('load', () => {
     renderer.setSize(innerWidth, innerHeight);
     cam.aspect = innerWidth / innerHeight;
     cam.updateProjectionMatrix();
+    if (Intro.cam) { Intro.cam.aspect = cam.aspect; Intro.cam.updateProjectionMatrix(); }
   });
   // Enter also starts
   window.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !Game.running && (Player.dead || Game.won)) restart();
-    else if (e.key === 'Enter' && !Game.running && $id('lobbyscreen').classList.contains('hidden')) {
+    else if (e.key === 'Enter' && !Game.running && !Intro.playing
+             && $id('lobbyscreen').classList.contains('hidden')) {
       Net.on = false; startGame();
     }
   });
@@ -500,7 +505,9 @@ window.addEventListener('load', () => {
       pollPad(dt);
     }
 
-    renderer.render(scene, cam);
+    Intro.update(dt);                                  // cinematic ticks
+    renderer.render(Intro.playing ? Intro.scene : scene,
+                    Intro.playing ? Intro.cam : cam);
   }
   requestAnimationFrame(loop);
 });
