@@ -228,7 +228,146 @@ function buildWorld(scene) {
     World.sight.push({ x: gx, z: gz, r: 2.4, h: 1.4 });    // duck behind the mound
   }
 
+  buildBase(scene);
+
   return World;
+}
+
+/* ---------- drop base — command center on the south pad ---------- */
+const _wEase = x => x * x * (3 - 2 * x);
+
+function buildBase(scene) {
+  const armor = new THREE.MeshStandardMaterial({ color: 0x2a3542, roughness: .6, metalness: .35 });
+  const joint = new THREE.MeshStandardMaterial({ color: 0x141a22, roughness: .95 });
+  const wall  = new THREE.MeshStandardMaterial({ color: 0x1a2531, roughness: .8, metalness: .25 });
+  const glowC = new THREE.MeshStandardMaterial({ color: 0x06202c, emissive: 0x4ad0ff, emissiveIntensity: 1.4 });
+  const glowO = new THREE.MeshBasicMaterial({ color: 0xff8a2a });
+  const BZ = 18;                                   // pad sits south of the drop point
+
+  const B = (w, h, d, m, x, y, z, parent) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+    b.position.set(x, y, z); (parent || scene).add(b);
+    return b;
+  };
+
+  B(4.4, .12, 4.4, joint, 0, .06, BZ);             // landing pad
+  B(.12, .02, 4.4, glowC, -2.1, .125, BZ);         // pad edge lights
+  B(.12, .02, 4.4, glowC, 2.1, .125, BZ);
+  B(4.4, .02, .12, glowC, 0, .125, BZ - 2.1);
+  B(4.4, .02, .12, glowC, 0, .125, BZ + 2.1);
+
+  const g = new THREE.Group(); g.position.set(0, .12, BZ); scene.add(g);
+  B(2.6, .5, 2.2, wall, 0, .37, 0, g);             // skirt
+  B(2.1, 1.1, 1.7, armor, 0, 1.15, 0, g);          // hull
+  B(1.5, .6, 1.2, joint, 0, 1.95, 0, g);           // upper deck
+  B(.6, .35, .6, armor, 0, 2.35, 0, g);            // crown
+  B(.06, 1, .06, joint, .8, 2.4, 0, g);            // antenna
+  B(.1, .1, .1, glowC, .8, 2.95, 0, g);            // beacon
+  B(1.6, .06, .02, glowC, 0, 1.0, .86, g);         // window strips
+  B(1.6, .06, .02, glowC, 0, 1.35, .86, g);
+  for (const lx of [-1.05, 1.05]) for (const lz of [-.8, .8])
+    B(.2, .4, .2, joint, lx, .2, lz, g);           // landing legs
+  const thr = new THREE.Group(); g.add(thr);
+  for (const tx of [-.8, 0, .8]) B(.34, .2, .34, glowO, tx, -.16, 0, thr);
+  thr.visible = false;
+
+  // warp-out streak — flat flash column where the base stood
+  const warp = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 9),
+    new THREE.MeshBasicMaterial({ color: 0xaee4ff, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  warp.position.set(0, 4.5, BZ); warp.visible = false; scene.add(warp);
+
+  // dust puff pool — soft sprites blasted out from under the pad
+  const dc = document.createElement('canvas'); dc.width = dc.height = 64;
+  const dg = dc.getContext('2d');
+  const grad = dg.createRadialGradient(32, 32, 4, 32, 32, 30);
+  grad.addColorStop(0, 'rgba(190,170,140,.65)');
+  grad.addColorStop(1, 'rgba(190,170,140,0)');
+  dg.fillStyle = grad; dg.fillRect(0, 0, 64, 64);
+  const dustTex = new THREE.CanvasTexture(dc);
+  const dust = [];
+  for (let i = 0; i < 16; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: dustTex, transparent: true, opacity: 0, depthWrite: false }));
+    sp.visible = false; scene.add(sp);
+    dust.push({ m: sp, vel: new THREE.Vector3(), t: 0, life: 0 });
+  }
+
+  const col = { x: 0, z: BZ, r: 3.1 };
+  const sgt = { x: 0, z: BZ, r: 3.1, h: 3.2 };
+  World.base = { g, thr, warp, dust, col, sgt, lift: -1, delay: -1, warped: false };
+  World.colliders.push(col);
+  World.sight.push(sgt);
+}
+
+/* base waits on the pad, then lifts a few seconds after every (re)drop */
+function resetBaseLift() {
+  const b = World.base; if (!b) return;
+  b.g.visible = true; b.g.position.y = .12;
+  b.thr.visible = false;
+  b.warp.visible = false; b.warp.material.opacity = 0;
+  b.lift = -1; b.warped = false; b.delay = 2.4;
+  for (const p of b.dust) { p.life = 0; p.m.visible = false; }
+  if (!World.colliders.includes(b.col)) World.colliders.push(b.col);
+  if (!World.sight.includes(b.sgt)) World.sight.push(b.sgt);
+}
+
+function updateBase(dt) {
+  const b = World.base; if (!b) return;
+  if (b.delay > 0) {
+    b.delay -= dt;
+    if (b.delay <= 0 && b.lift < 0) {
+      // liftoff — thrusters flare, dust blasts out, the base climbs
+      b.lift = 0; b.thr.visible = true;
+      const n = b.dust.length;
+      for (let i = 0; i < n; i++) {
+        const p = b.dust[i], a = i / n * Math.PI * 2 + Math.random() * .4;
+        p.t = 0; p.life = 1.4 + Math.random() * .9;
+        p.m.visible = true;
+        p.m.position.set(b.g.position.x + Math.cos(a) * 1.7, .15,
+                         b.g.position.z + Math.sin(a) * 1.7);
+        p.vel.set(Math.cos(a) * (2.5 + Math.random() * 2.5),
+                  .8 + Math.random() * 1.6,
+                  Math.sin(a) * (2.5 + Math.random() * 2.5));
+        p.m.material.opacity = .5;
+      }
+      Audio2.noise(1.4, .3, 180, .7);
+      Audio2.tone(48, 1.1, 'sawtooth', .22, 30);
+      Audio2.say && Audio2.say('Command center dusting off.', { rate: .95 });
+    }
+  }
+  if (b.lift >= 0) {
+    b.lift += dt;
+    const t = b.lift;
+    if (t < 2.8) {
+      b.g.position.y = .12 + _wEase(t / 2.8) * 12;
+      b.thr.children.forEach((c, i) => c.scale.y = 1 + Math.sin(t * 30 + i * 2) * .3);
+    } else if (!b.warped) {
+      // warp-out — flash column, base is gone, pad is walkable again
+      b.warped = true; b.g.visible = false; b.warp.visible = true;
+      const i1 = World.colliders.indexOf(b.col); if (i1 >= 0) World.colliders.splice(i1, 1);
+      const i2 = World.sight.indexOf(b.sgt); if (i2 >= 0) World.sight.splice(i2, 1);
+      Audio2.noise(.3, .3, 2400, .6);
+      Audio2.tone(1500, .35, 'sawtooth', .14, 140);
+    }
+    if (b.warped) {
+      const k = Math.min(1.4, t - 2.8);
+      b.warp.material.opacity = Math.max(0, .95 - k * 1.1);
+      b.warp.scale.x = .3 + k * 5;
+      if (k >= 1.4) { b.warp.visible = false; b.lift = -1; }
+    }
+  }
+  // dust always decays — runs regardless of phase
+  for (const p of b.dust) {
+    if (p.life <= 0) continue;
+    p.t += dt;
+    if (p.t >= p.life) { p.life = 0; p.m.visible = false; continue; }
+    p.m.position.addScaledVector(p.vel, dt);
+    p.vel.multiplyScalar(1 - dt * 1.2);
+    const k = p.t / p.life;
+    p.m.scale.setScalar(.9 + k * 3.6);
+    p.m.material.opacity = .5 * (1 - k);
+  }
 }
 
 /* ---------- circle collision vs world ---------- */

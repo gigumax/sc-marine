@@ -254,6 +254,8 @@ function startGame(online) {
   Game.won = false; Game.leader = false;
   Game.time = 0;
   Player.kills = 0;
+  Intro.menu = false;                         // leave the barracks backdrop
+  resetBaseLift();                            // your ride dusts off a few sec in
   setUnit(Game.unit);                     // marine or marauder loadout
   if (Net.on) Net.resetMatch();                                      // wave timers + objective banner
   if (Game.online) { clearAllies(); buildSquadHud(); }
@@ -352,6 +354,7 @@ function restart() {
   $id('hud').classList.remove('hidden');
   Game.running = true;
   Waves.reset();
+  resetBaseLift();                            // base waits on the pad again
   if (Game.online) { clearAllies(); buildSquadHud(); }
   else spawnAllies();                                 // solo ops gets AI marines
   canvasClick();
@@ -443,6 +446,7 @@ window.addEventListener('load', () => {
     Net.bail();
     document.querySelectorAll('.world').forEach(b => b.classList.remove('on'));
     $id('startscreen').classList.remove('hidden');
+    Intro.show();                                    // back inside the barracks
   };
   document.querySelectorAll('.world').forEach(b =>
     b.addEventListener('click', () => { joinWorld(b.dataset.w); canvasClick(); }));
@@ -465,6 +469,7 @@ window.addEventListener('load', () => {
 
   // #auto → jump straight into a solo match (headless/debug hook)
   if (location.hash === '#auto') startGame(false);
+  else Intro.show();                                 // menu lives inside the base
 
   let last = performance.now();
   function loop(t) {
@@ -519,6 +524,7 @@ window.addEventListener('load', () => {
       updateGibs(dt);
       updatePickups(dt);
       updateTracers(dt);
+      updateBase(dt);                              // ride home spools up + lifts
       UI.updateHud();
       drawRadar();
       } catch (err) {                                  // surface sim errors instead of freezing
@@ -532,9 +538,10 @@ window.addEventListener('load', () => {
       pollPad(dt);
     }
 
-    Intro.update(dt);                                  // cinematic ticks
-    renderer.render(Intro.playing ? Intro.scene : scene,
-                    Intro.playing ? Intro.cam : cam);
+    Intro.update(dt);                                  // cinematic + menu backdrop tick
+    const ix = Intro.active() && !Game.running;        // menu & cinematic share the intro scene
+    renderer.render(ix ? Intro.scene : scene,
+                    ix ? Intro.cam : cam);
   }
   requestAnimationFrame(loop);
 });
