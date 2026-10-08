@@ -492,7 +492,7 @@ function mkAlly(idx, name, accent, leader, mesh, slot, at) {
     idx, name, accent,
     leader,
     marFrame: leader,                      // leaders wear the marauder chassis
-    hp: leader ? 150 : 90, maxHp: leader ? 150 : 90,
+    hp: leader ? 300 : 90, maxHp: leader ? 300 : 90,
     yaw: Player.yaw,
     dead: false, gone: false, deathT: 0,
     fireT: 0.4 + idx * 0.15, retargetT: idx * 0.12,
@@ -669,7 +669,7 @@ function damageAlly(a, dmg, fromPos) {
         if (!cand.length) break;
         const nl = cand[Math.floor(Math.random() * cand.length)];
         nl.leader = true;
-        nl.maxHp = 150; nl.hp = Math.min(150, nl.hp + 60);   // heavy frame
+        nl.maxHp = 300; nl.hp = Math.min(300, nl.hp + 120);  // heavy frame
         swapAllyFrame(nl);
         extra += ' — ' + nl.name + ' TAKES COMMAND';
         allySay(nl, pick(BARKS.cmdTaken), true);
@@ -691,12 +691,23 @@ function allyShoot(a) {
     ? _aaim.set(tgtE.mesh.position.x, tgtE.mesh.position.y + 0.55, tgtE.mesh.position.z)
     : _aaim.copy(tgtH.pos).setY(0.7);
   const dist = a.pos.distanceTo(aim);
+  const from = a.pos.clone(); from.y = 1.3;
+  from.x += Math.sin(a.yaw) * 0.55; from.z += Math.cos(a.yaw) * 0.55;
 
   // muzzle flash + sound
   const fl = a.mesh.userData.flash;
   fl.material.opacity = 1; fl.material.rotation = Math.random() * 7;
-  Audio2.shotAt(dist > 0 ? a.pos.distanceTo(Player.pos) : 1);
   noiseAt(a.pos.x, a.pos.z, 30);                     // squad fire gives away its position
+
+  // marauder chassis — lob a real missile: smoke trail, splash on impact
+  if (a.marFrame) {
+    const dir = aim.clone().sub(from).normalize();
+    dir.y += 0.06; dir.normalize();                  // slight loft for the arc
+    spawnMissile(from, dir, 45);                     // 45 direct / ~22 splash
+    Audio2.noise(.22, .35 * Audio2.vol(a.pos.distanceTo(Player.pos)), 480, .8); // launch whoosh
+    return;
+  }
+  Audio2.shotAt(a.pos.distanceTo(Player.pos));
 
   // accuracy falls off with range; jitter while moving
   const acc = Math.max(0.12, 0.62 - dist * 0.015 - (a.moving ? 0.18 : 0));
@@ -714,8 +725,6 @@ function allyShoot(a) {
     else if (tgtH) damageSpawner(tgtH, 9, a.pos);
   }
   // tracer from rifle tip
-  const from = a.pos.clone(); from.y = 1.3;
-  from.x += Math.sin(a.yaw) * 0.55; from.z += Math.cos(a.yaw) * 0.55;
   spawnTracer(from, end);
 }
 
@@ -890,7 +899,11 @@ function updateAllies(dt) {
     /* --- fire --- */
     if (a.fireT <= 0 && aimAt && Math.abs(dy) < 0.35) {
       const d = Math.hypot(aimAt.x - a.pos.x, aimAt.z - a.pos.z);
-      if (d < 34) { allyShoot(a); a.fireT = 0.17 + Math.random() * 0.06; }
+      if (d < 34) {
+        allyShoot(a);
+        a.fireT = a.marFrame ? 0.9 + Math.random() * 0.5    // launcher cycle
+                             : 0.17 + Math.random() * 0.06;
+      }
     }
 
     /* --- animation --- */

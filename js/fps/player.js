@@ -452,12 +452,13 @@ function missileMesh() {
   return m;
 }
 
-function spawnMissile(from, dir) {
+function spawnMissile(from, dir, dmg) {
   const m = missileMesh();
   m.position.copy(from);
   m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
   Enemies.scene.add(m);
-  Player.missiles.push({ m, vel: dir.clone().multiplyScalar(MIS_SPD), t: 0, smokeT: 0, live: true });
+  Player.missiles.push({ m, vel: dir.clone().multiplyScalar(MIS_SPD), t: 0, smokeT: 0,
+                         live: true, dmg: dmg || Player.dmg });
 }
 
 let _smokeTex = null;
@@ -501,15 +502,16 @@ function explodeFx(pos) {
   Audio2.boom(pos.distanceTo(Player.pos));
 }
 
-function explodeDamage(pos, direct) {
+function explodeDamage(pos, direct, dmg) {
+  dmg = dmg || Player.dmg;
   if (direct) {                                        // the thing it actually hit eats full damage
-    if (Net.on) Net.hitEnemy(direct, Player.dmg, false);
-    else damageEnemy(direct, Player.dmg, false, true);
+    if (Net.on) Net.hitEnemy(direct, dmg, false);
+    else damageEnemy(direct, dmg, false, true);
   }
   for (const e of Enemies.list) {                      // everything nearby takes splash
     if (e.dead || e === direct) continue;
     if (e.mesh.position.distanceTo(pos) < SPLASH_R) {
-      const s = Math.round(Player.dmg / 2);
+      const s = Math.round(dmg / 2);
       if (Net.on) Net.hitEnemy(e, s, false);
       else damageEnemy(e, s, false, true);
     }
@@ -535,15 +537,15 @@ function updateMissiles(dt) {
         if (s.dead) continue;
         if (Math.hypot(mp.x - s.pos.x, mp.z - s.pos.z) < 2.3 && mp.y < 2.5) {
           detonate = true;
-          const ok = Net.on ? Net.hitHive(s, Player.dmg, Player.pos)
-                            : damageSpawner(s, Player.dmg, Player.pos);
+          const ok = Net.on ? Net.hitHive(s, ms.dmg, Player.pos)
+                            : damageSpawner(s, ms.dmg, Player.pos);
           break;
         }
       }
       if (!detonate && mp.y <= 0.05) detonate = true;  // dirt
     }
     if (detonate) {
-      if (ms.live) explodeDamage(ms.m.position.clone(), direct);
+      if (ms.live) explodeDamage(ms.m.position.clone(), direct, ms.dmg);
       explodeFx(ms.m.position.clone());
       Enemies.scene.remove(ms.m); ms.done = true;
     }
