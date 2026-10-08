@@ -303,6 +303,13 @@ function buildWorld(scene) {
       scene.add(egg);
       spawner.eggs.push({ m: egg, t: Math.random() * EGG_T });
     }
+    // the brood egg — twice the size, hatches the ultralisk
+    const ua = Math.random() * Math.PI * 2;
+    const uegg = new THREE.Mesh(eggGeo, eggMat);
+    uegg.scale.set(2.1, 1.6, 2.1);
+    uegg.position.set(gx + Math.cos(ua) * 5.6, 0.62, gz + Math.sin(ua) * 5.6);
+    scene.add(uegg);
+    spawner.eggs.push({ m: uegg, t: Math.random() * ULTRA_EGG_T, ultra: true });
   }
 
   buildBase(scene);

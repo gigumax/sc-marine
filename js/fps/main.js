@@ -343,7 +343,10 @@ function restart() {
     s.sacMat.emissiveIntensity = 0.8; s.sacMat.color.setHex(0x6a2aa0);
     s.glow.intensity = 0.9; s.beam.visible = true;
     s.mesh.rotation.z = 0; s.mesh.position.y = 0;
-    for (const eg of s.eggs) { eg.t = Math.random() * 5; eg.m.visible = true; }
+    for (const eg of s.eggs) {
+      eg.t = Math.random() * (eg.ultra ? ULTRA_EGG_T : EGG_T);
+      eg.m.visible = true;
+    }
   }
   if (Net.on && !Net.isHost) { UI.toast('WAITING ON FIELD COMMAND'); return; }
   Enemies.kills = 0;

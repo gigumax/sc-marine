@@ -397,7 +397,7 @@ const Net = {
   onEnemyKill(m) {
     // authoritative kill — everyone gibs; shooter gets credit (lings/hunters only)
     const e = this.eById[m.id];
-    if (e && !e.goneFx) { e.goneFx = true; gibBurst(new THREE.Vector3(m.x, 0.4, m.z), e.hunter); }
+    if (e && !e.goneFx) { e.goneFx = true; gibBurst(new THREE.Vector3(m.x, 0.4, m.z), e.hunter || e.ultra); }
     Enemies.kills = m.k;
     if (m.by === this.id) {
       Player.kills++;
@@ -450,14 +450,14 @@ const Net = {
   },
 
   spawnReplica(id, ty) {
-    const hunter = ty >= 1;                        // stale ty=2 roach rows → hunter
-    const mesh = buildZerglingMesh(hunter ? 1.5 : 1, hunter);
+    const ultra = ty >= 2, hunter = ty === 1;
+    const mesh = ultra ? buildUltraliskMesh() : buildZerglingMesh(hunter ? 1.5 : 1, hunter);
     const e = {
-      mesh, hunter, netId: id,
+      mesh, hunter, ultra, netId: id,
       // real stats so a migrated host can seamlessly take over the sim
-      hp: hunter ? 240 : 68,
-      speed: hunter ? 4.2 : 5.6,
-      radius: hunter ? 1.05 : 0.7,
+      hp: ultra ? 1000 : hunter ? 240 : 68,
+      speed: ultra ? 6.4 : hunter ? 4.2 : 5.6,
+      radius: ultra ? 1.9 : hunter ? 1.05 : 0.7,
       attackCd: 0, lungeT: 0, lungeFrom: null, lungeTo: null,
       dead: false, deathT: 0, weave: 0, animT: 0, screechT: 2,
       netTo: new THREE.Vector3(), netRy: 0, replica: true,
@@ -544,7 +544,7 @@ const Net = {
     const e = [];
     for (const en of Enemies.list) {
       if (en.gone) continue;
-      e.push(en.netId, en.hunter ? 1 : 0,
+      e.push(en.netId, en.ultra ? 2 : en.hunter ? 1 : 0,
         +en.mesh.position.x.toFixed(2), +en.mesh.position.y.toFixed(2),
         +en.mesh.position.z.toFixed(2), +en.mesh.rotation.y.toFixed(2));
     }

@@ -31,7 +31,8 @@ function zLos(ex, ez, eh, tx, tz, th) {
 function zCanSee(e, tx, ty, tz) {
   const m = e.mesh.position;
   const d = Math.hypot(tx - m.x, tz - m.z);
-  return d < Z_SMELL || (d < Z_SIGHT && zLos(m.x, m.z, e.hunter ? 1.0 : 0.85, tx, tz, ty));
+  return d < Z_SMELL ||
+    (d < Z_SIGHT && zLos(m.x, m.z, e.ultra ? 2.4 : e.hunter ? 1.0 : 0.85, tx, tz, ty));
 }
 
 /* gunfire gives you away — nearby zerg stalk the shot origin for a few sec */
@@ -274,16 +275,112 @@ function buildZerglingMesh(scale, hunter) {
   return g;
 }
 
+/* ---------- ultralisk — half a hive tall, kaiser blades, brutal melee ---------- */
+function ultraMats() {
+  if (!_zmats.u) _zmats.u = {
+    flesh: new THREE.MeshStandardMaterial({ color: 0x63304a, roughness: 0.75 }),
+    dark:  new THREE.MeshStandardMaterial({ color: 0x3a1c30, roughness: 0.85 }),
+    plate: new THREE.MeshStandardMaterial({ color: 0x8a5433, roughness: 0.7 }),
+    bone:  new THREE.MeshStandardMaterial({ color: 0xc9a97e, roughness: 0.55 }),
+    eye:   new THREE.MeshBasicMaterial({ color: 0xffc23a }),
+  };
+  return _zmats.u;
+}
+
+function buildUltraliskMesh() {
+  const g = new THREE.Group();
+  const M = ultraMats();
+
+  // massive barrel torso + hunched shoulder hump
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1.6, 12, 9), M.flesh);
+  body.scale.set(1.35, 1.0, 1.65); body.position.y = 2.1;
+  g.add(body);
+  const hump = new THREE.Mesh(new THREE.SphereGeometry(1.05, 10, 8), M.flesh);
+  hump.scale.set(1.55, 0.85, 1.05); hump.position.set(0, 3.05, 0.45);
+  g.add(hump);
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(1.15, 10, 8), M.dark);
+  belly.scale.set(1.05, 0.72, 1.35); belly.position.set(0, 1.15, 0.1);
+  g.add(belly);
+
+  // armored back — layered chitin plates marching down the spine
+  for (let i = 0; i < 4; i++) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(2.1 - i * 0.28, 0.28, 1.05), M.plate);
+    p.position.set(0, 3.55 - i * 0.32, 0.35 - i * 0.75);
+    p.rotation.x = 0.12 + i * 0.10;
+    g.add(p);
+    for (const s of [-1, 1]) {
+      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.95 - i * 0.1, 5), M.plate);
+      sp.position.set(s * (0.85 - i * 0.1), 3.75 - i * 0.3, 0.3 - i * 0.75);
+      sp.rotation.z = -s * 0.3; sp.rotation.x = -0.25 - i * 0.1;
+      g.add(sp);
+    }
+  }
+
+  // low slab head — wide jaw, tusks, orange eyes
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 8), M.flesh);
+  head.scale.set(1.05, 0.85, 1.35); head.position.set(0, 1.75, 2.75);
+  g.add(head);
+  const jaw = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.9, 5), M.dark);
+  jaw.rotation.x = Math.PI / 2 + 0.45; jaw.position.set(0, 1.35, 3.2);
+  g.add(jaw);
+  for (const s of [-1, 1]) {
+    const tusk = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.85, 5), M.bone);
+    tusk.rotation.x = Math.PI - 0.7; tusk.rotation.z = -s * 0.2;
+    tusk.position.set(s * 0.3, 1.45, 3.25);
+    g.add(tusk);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), M.eye);
+    eye.position.set(s * 0.32, 2.05, 3.2); g.add(eye);
+    const eye2 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 5, 4), M.eye);
+    eye2.position.set(s * 0.46, 1.92, 3.0); g.add(eye2);
+  }
+
+  // the kaiser blades — two huge scythes sweeping forward off the shoulders,
+  // plus a shorter second pair
+  for (const s of [-1, 1]) {
+    const b1 = buildHorn(3.8, 0.34, 1.75, M.bone);
+    b1.position.set(s * 1.5, 2.55, 1.4);
+    b1.rotation.z = -s * 0.55;
+    g.add(b1);
+    const b2 = buildHorn(2.6, 0.26, 1.9, M.bone);
+    b2.position.set(s * 1.7, 2.9, -0.55);
+    b2.rotation.z = -s * 0.85;
+    b2.rotation.x = -0.3;
+    g.add(b2);
+  }
+
+  // four pillar legs — diagonal gait (order: LF RB RF LB)
+  const legs = [];
+  for (const [s, f] of [[-1, 1.35], [1, -1.25], [1, 1.35], [-1, -1.25]]) {
+    const leg = new THREE.Group();
+    leg.position.set(s * 1.25, 1.55, f);
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 1.5, 7), M.dark);
+    col.position.y = -0.65; leg.add(col);
+    const claw = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 5), M.bone);
+    claw.rotation.x = Math.PI; claw.position.set(0, -1.55, 0.05);
+    leg.add(claw);
+    g.add(leg); legs.push(leg);
+  }
+
+  // thick tail dragging behind
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.2, 6), M.flesh);
+  tail.rotation.x = -Math.PI / 2 - 0.5;
+  tail.position.set(0, 1.5, -3.0);
+  g.add(tail);
+
+  g.userData.legs = legs;
+  return g;
+}
+
 /* ---------- enemy ---------- */
 function spawnEnemy(type, pos) {
-  const hunter = type === 'hunter';
-  const mesh = buildZerglingMesh(hunter ? 1.5 : 1, hunter);
+  const hunter = type === 'hunter', ultra = type === 'ultralisk';
+  const mesh = ultra ? buildUltraliskMesh() : buildZerglingMesh(hunter ? 1.5 : 1, hunter);
   mesh.position.copy(pos);
   const e = {
-    mesh, hunter,
-    hp: hunter ? 240 : 68,                 // swarm hardened — lings soak two mags
-    speed: (hunter ? 4.2 : 11.2) * (0.9 + Math.random() * 0.25),
-    radius: hunter ? 1.05 : 0.7,
+    mesh, hunter, ultra,
+    hp: ultra ? 1000 : hunter ? 240 : 68,
+    speed: (ultra ? 6.4 : hunter ? 4.2 : 11.2) * (0.9 + Math.random() * 0.25),
+    radius: ultra ? 1.9 : hunter ? 1.05 : 0.7,
     attackCd: 0,
     lungeT: 0,
     lungeFrom: null, lungeTo: null,
@@ -309,20 +406,22 @@ function spawnEnemy(type, pos) {
 
 /* egg splits open — little slime burst */
 const _slimeMat = new THREE.MeshBasicMaterial({ color: 0x4aff6a });
-function eggPop(p) {
-  for (let i = 0; i < 6; i++) {
+function eggPop(p, big) {
+  for (let i = 0; i < (big ? 12 : 6); i++) {
     const m = new THREE.Mesh(_gibGeo, _slimeMat);
     m.position.copy(p); m.position.y = 0.35;
     Enemies.scene.add(m);
     Enemies.gibs.push({
-      m, ttl: 0.7, t: 0,
-      vx: (Math.random() - .5) * 5, vy: 1.5 + Math.random() * 3, vz: (Math.random() - .5) * 5,
+      m, ttl: big ? 1.1 : 0.7, t: 0,
+      vx: (Math.random() - .5) * (big ? 9 : 5),
+      vy: 1.5 + Math.random() * (big ? 6 : 3),
+      vz: (Math.random() - .5) * (big ? 9 : 5),
       rs: (Math.random() - .5) * 10,
     });
   }
 }
 
-const EGG_T = 5;                  // seconds of gestation before the egg pops
+const EGG_T = 5, ULTRA_EGG_T = 20;  // ling eggs pop fast; the brood egg takes longer
 
 /* ---------- spawner damage ---------- */
 const HIVE_RANGE = 26;                        // hives are armored past this range
@@ -386,15 +485,24 @@ function updateSpawners(dt) {
     s.sacMat.emissiveIntensity = 0.6 + Math.sin(Game.time * 2.2 + s.pos.z) * 0.25 + s.flash * 1.2;
     s.ring.rotation.z += dt * 0.6;
 
-    // eggs gestate EGG_T, swell, then crack open into a zergling
+    // eggs gestate, swell, then crack open — ling eggs fast, the brood egg slow
     for (const eg of s.eggs) {
       eg.t += dt;
-      const k = Math.min(1, eg.t / EGG_T);
+      const T = eg.ultra ? ULTRA_EGG_T : EGG_T;
+      const k = Math.min(1, eg.t / T);
       const wob = k > 0.7 ? Math.sin(Game.time * 9 + eg.m.position.x) * 0.05 : 0;  // shakes near hatch
-      eg.m.scale.set(0.45 + 0.55 * k + wob, (0.45 + 0.55 * k) * 0.75, 0.45 + 0.55 * k - wob);
-      if (eg.t >= EGG_T) {
+      const b = (0.45 + 0.55 * k) * (eg.ultra ? 2.1 : 1);   // brood egg is huge
+      eg.m.scale.set(b + wob, b * 0.75, b - wob);
+      if (eg.t >= T) {
         eg.t = 0;                                   // a new egg starts gestating
-        if (Enemies.list.length < 72 && (!Net.on || Net.isHost)) {
+        if (Net.on && !Net.isHost) continue;        // host owns hatching
+        if (eg.ultra) {
+          const nU = Enemies.list.reduce((n, x) => n + (x.ultra && !x.dead ? 1 : 0), 0);
+          if (nU < 3) {
+            spawnEnemy('ultralisk', eg.m.position.clone());
+            eggPop(eg.m.position, true);
+          }
+        } else if (Enemies.list.length < 72) {
           spawnEnemy('zergling', eg.m.position.clone());
           eggPop(eg.m.position);
         }
@@ -445,7 +553,7 @@ function damageEnemy(e, dmg, headshot, byPlayer, creditId) {
       if (!Game.leader && !Game.online && Player.kills >= PROMOTE_KILLS) promoteToLeader();
     }
     Audio2.kill(e.mesh.position.distanceTo(Player.pos));
-    gibBurst(e.mesh.position, e.hunter);
+    gibBurst(e.mesh.position, e.hunter || e.ultra);
     maybeDrop(e.mesh.position.clone());
     UI.hitmarker(true);
   } else {
@@ -613,17 +721,14 @@ const _ammoGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
 const _ammoMat = new THREE.MeshStandardMaterial({ color: 0x2266aa, emissive: 0x2a8ae0, emissiveIntensity: 0.9 });
 const _hpGeo = new THREE.BoxGeometry(0.32, 0.32, 0.32);
 const _hpMat = new THREE.MeshStandardMaterial({ color: 0x22aa55, emissive: 0x2ae05a, emissiveIntensity: 0.9 });
-const _rfGeo = new THREE.BoxGeometry(0.44, 0.44, 0.44);   // bigger — this one matters
-const _rfMat = new THREE.MeshStandardMaterial({ color: 0x8a4a00, emissive: 0xff7a1a, emissiveIntensity: 1.1 });
 
 function maybeDrop(pos) {
   const r = Math.random();
   if (r > 0.16) return;
-  // orange dropship cube — very rare, solo only (AI marines don't exist online)
-  const type = !Net.on && r < 0.012 ? 'reinforce' : r < 0.10 ? 'ammo' : 'health';
+  const type = r < 0.10 ? 'ammo' : 'health';
   const m = new THREE.Mesh(
-    type === 'reinforce' ? _rfGeo : type === 'ammo' ? _ammoGeo : _hpGeo,
-    type === 'reinforce' ? _rfMat : type === 'ammo' ? _ammoMat : _hpMat);
+    type === 'ammo' ? _ammoGeo : _hpGeo,
+    type === 'ammo' ? _ammoMat : _hpMat);
   m.position.set(pos.x, 0.5, pos.z);
   Enemies.scene.add(m);
   const p = { m, type, t: 0 };
@@ -642,10 +747,6 @@ function updatePickups(dt) {
           Player.energy = Math.min(Player.energyMax, Player.energy + 35);
           UI.toast('+35 ENERGY');
         } else { Player.reserve = Math.min(480, Player.reserve + 40); UI.toast('+40 AMMO'); }
-      }
-      else if (p.type === 'reinforce') {
-        spawnReinforcements(5, p.m.position);
-        UI.toast('REINFORCEMENTS — +5 MARINES');
       }
       else { Player.heal(30); UI.toast('+30 VITALS'); }
       Audio2.pickup();
@@ -751,17 +852,17 @@ function updateEnemies(dt, onPlayerHit) {
       e.lungeT += dt * 3.2;
       const k = Math.min(1, e.lungeT);
       m.position.lerpVectors(e.lungeFrom, e.lungeTo, k);
-      m.position.y = Math.sin(k * Math.PI) * 1.1;
+      m.position.y = Math.sin(k * Math.PI) * (e.ultra ? 0.5 : 1.1);
       if (k >= 1) {
         m.position.y = 0;
         e.lungeT = 0;
-        meleeHit(e, e.hunter ? 18 : 9);
-        e.attackCd = 0.5;               // lings bite fast — half-second swing
+        meleeHit(e, e.ultra ? 80 : e.hunter ? 18 : 9);
+        e.attackCd = e.ultra ? 1.5 : 0.5;   // the big swing is slow but heavy
       }
       continue;
     }
 
-    if (engaged && dist < 2.3 && e.attackCd <= 0) {
+    if (engaged && dist < (e.ultra ? 4.6 : 2.3) && e.attackCd <= 0) {
       // start lunge
       e.lungeT = 0.001;
       e.lungeFrom = m.position.clone();
