@@ -414,13 +414,34 @@ const Intro = {
     this.sAmb = .6; this.sGun = 5; this.sScr = 1.5;            // soundscape timers
     const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
     try { Audio2.ensure && Audio2.ensure(); } catch (e) {}
-    this._skip = () => { if (this.armed) this.stop(); };
-    setTimeout(() => { this.armed = true; }, 900);
-    document.addEventListener('keydown', this._skip);
-    document.addEventListener('mousedown', this._skip);
+    const begin = () => {
+      this._skip = () => { if (this.armed) this.stop(); };
+      setTimeout(() => { this.armed = true; }, 900);
+      document.addEventListener('keydown', this._skip);
+      document.addEventListener('mousedown', this._skip);
+    };
+    // autoplay policy — no sound before a gesture, so hold on black for one
+    if (Audio2.ctx && Audio2.ctx.state === 'suspended') {
+      const sk = document.getElementById('story-skip');
+      this.gated = true;
+      sk.textContent = 'TAP OR PRESS ANY KEY TO BEGIN ▸';
+      sk.style.zIndex = 31;                               // above the fade's black
+      this._gate = () => {
+        this.gated = false;
+        sk.textContent = 'TAP ANYWHERE TO SKIP ▸';
+        sk.style.zIndex = '';
+        try { Audio2.ensure().resume(); } catch (e) {}
+        document.removeEventListener('mousedown', this._gate);
+        document.removeEventListener('keydown', this._gate);
+        begin();                                          // skip arms after the unlock tap
+      };
+      document.addEventListener('mousedown', this._gate);
+      document.addEventListener('keydown', this._gate);
+    } else begin();
   },
 
   storyUpdate(dt) {
+    if (this.gated) return;                               // held for the unlock gesture
     const t = this.storyT += dt, cam = this.storyCam;
     const f = document.getElementById('intro-fade');
     if (t < 1.1) f.style.opacity = 1 - t / 1.1;           // fade in from black
@@ -902,6 +923,14 @@ const Intro = {
     spawnQueue.length = 0;                                       // nothing hatches posthumously
     document.removeEventListener('keydown', this._skip);
     document.removeEventListener('mousedown', this._skip);
+    if (this._gate) {
+      document.removeEventListener('mousedown', this._gate);
+      document.removeEventListener('keydown', this._gate);
+      this._gate = null;
+    }
+    this.gated = false;
+    const gsk = document.getElementById('story-skip');
+    if (gsk) gsk.style.zIndex = '';
     if (this._vMove) document.removeEventListener('mousemove', this._vMove);
     if (this._vClick) document.removeEventListener('mousedown', this._vClick);
     document.body.style.cursor = '';

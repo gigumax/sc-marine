@@ -150,3 +150,10 @@ const Audio2 = {
     this.say('Suit... critical', { rate: 0.95, pitch: 1.1 });
   },
 };
+
+// browsers park the AudioContext until a gesture — grab every input to un-mute
+if (typeof document !== 'undefined') {
+  const _unlock = () => { try { Audio2.ensure().resume(); } catch (e) {} };
+  document.addEventListener('pointerdown', _unlock);
+  document.addEventListener('keydown', _unlock);
+}
