@@ -733,17 +733,18 @@ const Intro = {
       }
     }
 
-    // kills land where someone's actually aiming — the wall SHREDS the first waves
-    if (t > 6.0 && t < 20.5) {
+    // kills land where someone's actually aiming — a lucky few, not a massacre
+    if (t > 7.0 && t < 17.5) {
       this.killT -= dt;
       if (this.killT <= 0) {
-        this.killT = 0.07 + Math.random() * .05;
+        this.killT = 1.6 + Math.random() * .8;
         const shooters = this.storyMarines.filter(m => !m.userData.fell && m.userData.tgt);
-        for (let k = 0; k < Math.min(4, shooters.length); k++) {
-          const v = shooters.splice(Math.floor(Math.random() * shooters.length), 1)[0].userData.tgt;
-          if (v.sd) continue;
-          v.sd = true;
-          try { bloodBurst(v.mesh.position.clone().setY(.4), 6); } catch (e) {}
+        if (shooters.length) {
+          const v = shooters[Math.floor(Math.random() * shooters.length)].userData.tgt;
+          if (!v.sd) {
+            v.sd = true;
+            try { bloodBurst(v.mesh.position.clone().setY(.4), 6); } catch (e) {}
+          }
         }
       }
     }
