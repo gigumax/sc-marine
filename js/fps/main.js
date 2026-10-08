@@ -120,9 +120,8 @@ function drawRadar() {
   for (const s of World.spawners) if (!s.dead) plot(s.pos.x, s.pos.z, 'rgba(180,70,255,.95)', 7);
   for (const e of Enemies.list) if (!e.dead)
     plot(e.mesh.position.x, e.mesh.position.z,
-         e.roach ? '#7aff4a' : e.hunter ? '#ff8a3a' : '#ff4a3a',
-         e.roach || e.hunter ? 5 : 3.5);
-  for (const s of Enemies.spits) plot(s.m.position.x, s.m.position.z, '#b4ff5a', 3);
+         e.hunter ? '#ff8a3a' : '#ff4a3a',
+         e.hunter ? 5 : 3.5);
   for (const p of Enemies.pickups) plot(p.m.position.x, p.m.position.z, p.type === 'ammo' ? '#5ab4ff' : '#5aff8a', 3.5);
   for (const a of Allies.list) if (!a.dead) plot(a.pos.x, a.pos.z, a.accent, 4);
   if (Net.on) for (const id in Net.peers) {
@@ -161,7 +160,7 @@ function pollPad(dt) {
   if (once(9)) {                                     // Start
     if (Player.dead || Game.won) restart();
     else if (!Game.running && !Intro.playing && $id('lobbyscreen').classList.contains('hidden')) {
-      Net.on = false; startGame();
+      soloOps();
     }
   }
   return { moveX: Pad.lx, moveZ: Pad.ly, sprint: btn(10), fire: btn(7), aim: btn(6) };
@@ -239,6 +238,13 @@ function startGame(online) {
   canvasClick();
 }
 
+// SOLO — same suit-up walkout, straight into the fight
+function soloOps() {
+  if (Intro.playing) return;
+  $id('startscreen').classList.add('hidden');
+  Intro.play(() => { Net.on = false; startGame(); });
+}
+
 // ONLINE — suit-up cinematic first, then pick a named world;
 // everyone on the same world drops together
 function startOnline() {
@@ -291,12 +297,11 @@ function restart() {
   for (const e of Enemies.list) Enemies.scene.remove(e.mesh);
   for (const g of Enemies.gibs) Enemies.scene.remove(g.m);
   for (const p of Enemies.pickups) Enemies.scene.remove(p.m);
-  for (const s of Enemies.spits) Enemies.scene.remove(s.m);
   for (const t of Player.tracers) Enemies.scene.remove(t.m);
   for (const m of Player.missiles) Enemies.scene.remove(m.m);
   for (const s of Player.smoke) Enemies.scene.remove(s.m);
   Player.missiles = []; Player.smoke = [];
-  Enemies.list = []; Enemies.gibs = []; Enemies.pickups = []; Enemies.spits = []; Player.tracers = [];
+  Enemies.list = []; Enemies.gibs = []; Enemies.pickups = []; Player.tracers = [];
   Net.resetMatch();              // drop remote replicas/state for the rematch
   // restore spawn-hives
   for (const s of World.spawners) {
@@ -408,7 +413,7 @@ window.addEventListener('load', () => {
     document.querySelectorAll('.cls').forEach(x => x.classList.toggle('on', x === b));
     Game.unit = b.dataset.unit;
   });
-  $id('btn-solo').onclick = () => { Net.on = false; startGame(); };
+  $id('btn-solo').onclick = soloOps;
   $id('btn-online').onclick = startOnline;
   $id('btn-lobby-cancel').onclick = () => {
     clearTimeout(Game._soloT);
@@ -431,7 +436,7 @@ window.addEventListener('load', () => {
     if (e.key === 'Enter' && !Game.running && (Player.dead || Game.won)) restart();
     else if (e.key === 'Enter' && !Game.running && !Intro.playing
              && $id('lobbyscreen').classList.contains('hidden')) {
-      Net.on = false; startGame();
+      soloOps();
     }
   });
 
@@ -484,7 +489,6 @@ window.addEventListener('load', () => {
       // host simulates the swarm; clients render net replicas
       if (!Net.on || Net.isHost) {
         updateEnemies(dt, damagePlayer);
-        updateSpits(dt, damagePlayer);
         Waves.update(dt);
       }
       updateAllies(dt);
