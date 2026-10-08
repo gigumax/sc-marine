@@ -292,7 +292,8 @@ function spawnEnemy(type, pos) {
     animT: Math.random() * 7,
     screechT: 2 + Math.random() * 6,
     home: pos.clone(),             // where the hive dumped it — drift back here
-    alertPos: null, alertT: 0,     // last heard gunshot
+    // fresh hatch knows where the drop was — it hunts the marines, not the nest
+    alertPos: Player.pos.clone(), alertT: 600,
     wanderT: Math.random() * 2, wanderPos: null,
   };
   mesh.userData.enemy = e;
@@ -305,6 +306,23 @@ function spawnEnemy(type, pos) {
   Audio2.spawn(pos.distanceTo(Player.pos));
   return e;
 }
+
+/* egg splits open — little slime burst */
+const _slimeMat = new THREE.MeshBasicMaterial({ color: 0x4aff6a });
+function eggPop(p) {
+  for (let i = 0; i < 6; i++) {
+    const m = new THREE.Mesh(_gibGeo, _slimeMat);
+    m.position.copy(p); m.position.y = 0.35;
+    Enemies.scene.add(m);
+    Enemies.gibs.push({
+      m, ttl: 0.7, t: 0,
+      vx: (Math.random() - .5) * 5, vy: 1.5 + Math.random() * 3, vz: (Math.random() - .5) * 5,
+      rs: (Math.random() - .5) * 10,
+    });
+  }
+}
+
+const EGG_T = 5;                  // seconds of gestation before the egg pops
 
 /* ---------- spawner damage ---------- */
 const HIVE_RANGE = 26;                        // hives are armored past this range
@@ -332,6 +350,7 @@ function damageSpawner(s, dmg, from) {
     s.beam.visible = false;
     s.mesh.rotation.z = 0.18;
     s.mesh.position.y = -0.4;
+    for (const eg of s.eggs) eg.m.visible = false;
     for (let i = 0; i < 16; i++) {
       const m = new THREE.Mesh(_gibGeo, new THREE.MeshBasicMaterial({ color: 0x8a3ae0 }));
       m.position.copy(s.pos); m.position.y = 0.8;
@@ -366,6 +385,21 @@ function updateSpawners(dt) {
     s.ringMat.emissiveIntensity = 0.9 + Math.sin(Game.time * 3 + s.pos.x) * 0.25 + s.flash * 1.6;
     s.sacMat.emissiveIntensity = 0.6 + Math.sin(Game.time * 2.2 + s.pos.z) * 0.25 + s.flash * 1.2;
     s.ring.rotation.z += dt * 0.6;
+
+    // eggs gestate 5s, swell, then crack open into a zergling
+    for (const eg of s.eggs) {
+      eg.t += dt;
+      const k = Math.min(1, eg.t / EGG_T);
+      const wob = k > 0.7 ? Math.sin(Game.time * 9 + eg.m.position.x) * 0.05 : 0;  // shakes near hatch
+      eg.m.scale.set(0.45 + 0.55 * k + wob, (0.45 + 0.55 * k) * 0.75, 0.45 + 0.55 * k - wob);
+      if (eg.t >= EGG_T) {
+        eg.t = 0;                                   // a new egg starts gestating
+        if (Enemies.list.length < 44 && (!Net.on || Net.isHost)) {
+          spawnEnemy('zergling', eg.m.position.clone());
+          eggPop(eg.m.position);
+        }
+      }
+    }
   }
 }
 
@@ -382,6 +416,7 @@ function hiveDownFX(s) {
   s.beam.visible = false;
   s.mesh.rotation.z = 0.18;
   s.mesh.position.y = -0.4;
+  for (const eg of s.eggs) eg.m.visible = false;
   const left = World.spawners.filter(x => !x.dead).length;
   UI.waveBanner(left ? `SPAWN-HIVE DESTROYED — ${left} LEFT` : 'ALL HIVES DOWN — CLEAR THE SWARM');
 }
@@ -742,7 +777,7 @@ function updateEnemies(dt, onPlayerHit) {
     const sd = Math.max(dist, 0.001);
     let mx = dx / sd, mz = dz / sd;
     // combat move at full clip; stalk heard shots; idle drift is slow
-    let sp = e.speed * (engaged ? 1 : (tp === e.alertPos ? 0.8 : 0.38));
+    let sp = e.speed * (engaged ? 1 : (tp === e.alertPos ? 1.0 : 0.38));
     if (engaged) {
       // zergling/hunter: sinus weave chase
       const wob = Math.sin(e.weave) * Math.min(1, dist / 12) * 0.7;
@@ -837,23 +872,6 @@ const Waves = {
         }
     }
 
-    this.spawnT -= dt;
-    if (this.spawnT <= 0) {
-      const cap = 14 + this.wave * 6;                 // swarm cap grows with threat
-      let n = this.alive();
-      if (n < cap) {
-        this.spawnT = Math.max(0.45, 1.6 - this.wave * 0.12);
-        const burst = 2 + Math.floor(this.wave / 2);  // lings pour out of EVERY hive
-        for (const s of hives)
-          for (let i = 0; i < burst && n < cap; i++, n++) {
-            const pos = s.pos.clone();
-            pos.x += (Math.random() - .5) * 4;
-            pos.z += (Math.random() - .5) * 4;
-            spawnEnemy(this.pickType(), pos);
-          }
-      } else {
-        this.spawnT = 0.4;
-      }
-    }
+    // ambient pressure comes from the eggs — no free spawns between surges
   },
 };

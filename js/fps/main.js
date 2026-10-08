@@ -337,6 +337,7 @@ function restart() {
     s.sacMat.emissiveIntensity = 0.8; s.sacMat.color.setHex(0x6a2aa0);
     s.glow.intensity = 0.9; s.beam.visible = true;
     s.mesh.rotation.z = 0; s.mesh.position.y = 0;
+    for (const eg of s.eggs) { eg.t = Math.random() * 5; eg.m.visible = true; }
   }
   if (Net.on && !Net.isHost) { UI.toast('WAITING ON FIELD COMMAND'); return; }
   Enemies.kills = 0;
@@ -402,7 +403,7 @@ window.addEventListener('load', () => {
   Game.scene = scene;
   Enemies.scene = scene;
 
-  const cam = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.08, 500);
+  const cam = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.08, 2000);
   scene.add(cam);
   Game.cam = cam;
 
