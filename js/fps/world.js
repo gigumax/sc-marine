@@ -246,7 +246,7 @@ function buildWorld(scene) {
     World.colliders.push({ x: gx, z: gz, r: 2.4 });
     World.sight.push({ x: gx, z: gz, r: 2.4, h: 1.4 });    // duck behind the mound
 
-    // green eggs ringing the mound — 5s gestation, then a zergling pops out
+    // green eggs ringing the mound — gestate EGG_T seconds, then a zergling pops out
     for (let i = 0; i < 6; i++) {
       const a = i / 6 * Math.PI * 2 + Math.random() * 0.5;
       const r = 3.9 + Math.random() * 0.7;
@@ -254,7 +254,7 @@ function buildWorld(scene) {
       egg.scale.set(1, 0.75, 1);
       egg.position.set(gx + Math.cos(a) * r, 0.3, gz + Math.sin(a) * r);
       scene.add(egg);
-      spawner.eggs.push({ m: egg, t: Math.random() * 5 });
+      spawner.eggs.push({ m: egg, t: Math.random() * EGG_T });
     }
   }
 

@@ -386,7 +386,7 @@ function updateSpawners(dt) {
     s.sacMat.emissiveIntensity = 0.6 + Math.sin(Game.time * 2.2 + s.pos.z) * 0.25 + s.flash * 1.2;
     s.ring.rotation.z += dt * 0.6;
 
-    // eggs gestate 5s, swell, then crack open into a zergling
+    // eggs gestate EGG_T, swell, then crack open into a zergling
     for (const eg of s.eggs) {
       eg.t += dt;
       const k = Math.min(1, eg.t / EGG_T);
@@ -394,7 +394,7 @@ function updateSpawners(dt) {
       eg.m.scale.set(0.45 + 0.55 * k + wob, (0.45 + 0.55 * k) * 0.75, 0.45 + 0.55 * k - wob);
       if (eg.t >= EGG_T) {
         eg.t = 0;                                   // a new egg starts gestating
-        if (Enemies.list.length < 44 && (!Net.on || Net.isHost)) {
+        if (Enemies.list.length < 72 && (!Net.on || Net.isHost)) {
           spawnEnemy('zergling', eg.m.position.clone());
           eggPop(eg.m.position);
         }
@@ -855,16 +855,16 @@ const Waves = {
       return;
     }
 
-    // threat level ramps every 32s — each wave hits as a surge from every hive
+    // threat level ramps every 24s — each wave hits as a surge from every hive
     this.t += dt;
-    if (this.t > 32) {
+    if (this.t > 24) {
       this.t = 0;
       this.wave++;
       UI.waveBanner(`WAVE ${this.wave} — THE SWARM SURGES`);
       Audio2.wave();
-      let surge = Math.min(5, 2 + this.wave);        // lings per hive per wave
+      let surge = Math.min(9, 3 + this.wave);        // lings per hive per wave
       for (const s of hives)
-        for (let i = 0; i < surge && Enemies.list.length < 44; i++) {
+        for (let i = 0; i < surge && Enemies.list.length < 72; i++) {
           const pos = s.pos.clone();
           pos.x += (Math.random() - .5) * 5;
           pos.z += (Math.random() - .5) * 5;
