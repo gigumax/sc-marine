@@ -10,8 +10,10 @@ const Allies = {
   cmd: 'push',                      // 'push' | 'fall' — your last order
   radioT: 0,                        // global radio throttle
   hurtBarkT: 0,                     // cooldown on 'cover the LT' barks
-  names: ['RAYNOR', 'DIAZ', 'HORNER', 'TYCUS', 'SWANN', 'VOGEL', 'BISHOP', 'CADE', 'JENSEN'],
-  accents: [0xffd24a, 0x4ad0ff, 0x6aff8a, 0xff6a4a, 0xc07aff, 0xff9a3a, 0x7ae8d0, 0xff6ac0, 0x9dff4a],
+  names: ['RAYNOR', 'DIAZ', 'HORNER', 'TYCUS', 'SWANN', 'VOGEL', 'BISHOP', 'CADE', 'JENSEN',
+          'HAYES', 'ROOK', 'MALIK', 'KOVAC', 'FINDLAY'],
+  accents: [0xffd24a, 0x4ad0ff, 0x6aff8a, 0xff6a4a, 0xc07aff, 0xff9a3a, 0x7ae8d0, 0xff6ac0, 0x9dff4a,
+            0xe03a3a, 0xa8d8ff, 0x8a7aff, 0xb8c84a, 0xff8a70],
   // wedge slots behind the leader, in leader-local space {x, z}
   // (local -z is the facing direction, so +z trails behind)
   slots: [
@@ -20,6 +22,9 @@ const Allies = {
     { x: -1.5, z: 4.6 }, { x: 1.5, z: 4.6 },      // inner pair
     { x: 0, z: 6.2 },                              // rear guard
     { x: -3.4, z: 6.4 }, { x: 3.4, z: 6.4 },      // rear wings
+    { x: -1.7, z: 7.8 }, { x: 1.7, z: 7.8 },      // third-rank pair
+    { x: -5.0, z: 7.6 }, { x: 5.0, z: 7.6 },      // third-rank outers
+    { x: 0, z: 8.8 },                              // tail
   ],
 };
 

@@ -169,11 +169,11 @@ const Intro = {
     /* --- your squad billets here — two ranks at ease flanking the aisle --- */
     this.squadList = [];
     const SLOT_POS = [
-      [-2.15, -3.5], [-2.15, -1.6], [-2.15, 0.3], [-2.15, 2.2], [-2.15, 4.1],
-      [ 2.15, -2.6], [ 2.15, -0.7], [ 2.15, 1.2], [ 2.15, 3.1],
+      [-2.15, -3.5], [-2.15, -2.22], [-2.15, -0.94], [-2.15, 0.34], [-2.15, 1.62], [-2.15, 2.9], [-2.15, 4.1],
+      [ 2.15, -2.85], [ 2.15, -1.57], [ 2.15, -0.29], [ 2.15, 0.99], [ 2.15, 2.27], [ 2.15, 3.55], [ 2.15, 4.1],
     ];
     for (let i = 0; i < Allies.names.length; i++) {
-      const isLead = i === 0 || i === 4;                            // commanders wear marauder chassis
+      const isLead = i === 0 || i === 7;                            // a commander heads each file
       const bare = this.fatigueMesh(Allies.accents[i]);             // at ease — armor stays racked
       s.add(bare);
       const [sx, sz] = SLOT_POS[i];
@@ -468,8 +468,15 @@ const Intro = {
       }
       const mp = e.mesh.position;
       if (e.sd) {                                        // shot dead — keel over, stay down
-        e.mesh.rotation.x += (1.5 - e.mesh.rotation.x) * Math.min(1, dt * 6);
-        mp.y += (-0.05 - mp.y) * Math.min(1, dt * 4);
+        if (e.sdDone) continue;                          // settled — hands off
+        e.mesh.rotation.x += (1.5 - e.mesh.rotation.x) * Math.min(1, dt * 9);
+        mp.y += (0 - mp.y) * Math.min(1, dt * 6);        // on the dirt, not under it
+        if (1.5 - e.mesh.rotation.x < .05) {
+          e.mesh.rotation.x = 1.5; mp.y = 0;
+          const lgs = e.mesh.userData.legs || [];
+          for (const lg of lgs) lg.rotation.x = 0;       // legs splay flat once
+          e.sdDone = true;
+        }
         continue;
       }
       e.storyRet -= dt;
