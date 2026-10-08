@@ -426,11 +426,15 @@ const Intro = {
       const sk = document.getElementById('story-skip');
       this.gated = true;
       sk.textContent = 'TAP OR PRESS ANY KEY TO BEGIN ▸';
-      sk.style.zIndex = 31;                               // above the fade's black
+      sk.style.cssText += ';z-index:31;inset:0;right:auto;bottom:auto;' +
+        'display:flex;align-items:center;justify-content:center;' +
+        'font-size:16px;letter-spacing:.4em;color:#ffb347';  // can't miss it on the black
       this._gate = () => {
+        if (!this.gated) return;
         this.gated = false;
+        clearTimeout(this._gateTO); this._gateTO = null;
         sk.textContent = 'TAP ANYWHERE TO SKIP ▸';
-        sk.style.zIndex = '';
+        sk.style.cssText = '';                             // back to the corner pill
         try { Audio2.ensure().resume(); } catch (e) {}
         document.removeEventListener('mousedown', this._gate);
         document.removeEventListener('keydown', this._gate);
@@ -438,6 +442,8 @@ const Intro = {
       };
       document.addEventListener('mousedown', this._gate);
       document.addEventListener('keydown', this._gate);
+      // never hang — no gesture in 3.5s → roll it silent, score latches on later
+      this._gateTO = setTimeout(() => { this._gate && this._gate(); }, 3500);
     } else begin();
   },
 
@@ -939,9 +945,10 @@ const Intro = {
       document.removeEventListener('keydown', this._gate);
       this._gate = null;
     }
+    if (this._gateTO) { clearTimeout(this._gateTO); this._gateTO = null; }
     this.gated = false;
     const gsk = document.getElementById('story-skip');
-    if (gsk) gsk.style.zIndex = '';
+    if (gsk) gsk.style.cssText = '';                     // drops gate's centered styles too
     if (this._vMove) document.removeEventListener('mousemove', this._vMove);
     if (this._vClick) document.removeEventListener('mousedown', this._vClick);
     document.body.style.cursor = '';
