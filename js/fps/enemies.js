@@ -810,14 +810,18 @@ function updateEnemies(dt, onPlayerHit) {
 
     // pick nearest victim it can actually see — cover breaks sight
     let tp = null, tAlly = null, dist = Infinity;
+    // hunt vector — nearest marine PERIOD, sighted or not; idle zerg sweep toward it
+    let hx = p.x, hz = p.z, hd = Player.dead ? Infinity
+      : Math.hypot(p.x - m.position.x, p.z - m.position.z);
     const see = (x, y, z) => zCanSee(e, x, y, z);
     if (!Player.dead && see(p.x, 1.3, p.z)) {
-      dist = Math.hypot(p.x - m.position.x, p.z - m.position.z);
+      dist = hd;
       tp = p;
     }
     for (const a of Allies.list) {
       if (a.dead) continue;
       const d = Math.hypot(a.pos.x - m.position.x, a.pos.z - m.position.z);
+      if (d < hd) { hd = d; hx = a.pos.x; hz = a.pos.z; }
       if (d < dist && see(a.pos.x, 1.3, a.pos.z)) { dist = d; tp = a.pos; tAlly = a; }
     }
     if (Net.on)
@@ -826,6 +830,7 @@ function updateEnemies(dt, onPlayerHit) {
         if (q.dead) continue;
         const mp = q.mesh.position;
         const d = Math.hypot(mp.x - m.position.x, mp.z - m.position.z);
+        if (d < hd) { hd = d; hx = mp.x; hz = mp.z; }
         if (d < dist && see(mp.x, 1.3, mp.z)) { dist = d; tp = mp; tAlly = null; }
       }
     e.tgtAlly = tAlly;
@@ -845,8 +850,8 @@ function updateEnemies(dt, onPlayerHit) {
         if (e.wanderT <= 0 || !e.wanderPos) {
           e.wanderT = 2.5 + Math.random() * 3;
           (e.wanderPos = e.wanderPos || new THREE.Vector3())
-            .set(e.home.x + (Math.random() - .5) * 9, 0,
-                 e.home.z + (Math.random() - .5) * 9);
+            .set(hx + (Math.random() - .5) * 16, 0,      // picket the marine's area
+                 hz + (Math.random() - .5) * 16);
         }
         tp = e.wanderPos;
       }
