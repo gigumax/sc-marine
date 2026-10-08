@@ -504,7 +504,8 @@ function updateSpawners(dt) {
     if (Net.on && !Net.isHost) continue;            // host owns hatching
     if (burst) {
       for (const eg of le) eggPop(eg.m.position);
-      for (let i = 0; i < 20 && Enemies.list.length < 72; i++) {
+      const nLive = Enemies.list.reduce((n, x) => n + (!x.gone && !x.dead && !x.sd ? 1 : 0), 0);
+      for (let i = 0; i < 20 && nLive + i < 72; i++) {
         const pos = le[i % le.length].m.position.clone();
         pos.x += (Math.random() - .5) * 2.4;
         pos.z += (Math.random() - .5) * 2.4;

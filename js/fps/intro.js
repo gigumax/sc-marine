@@ -246,9 +246,9 @@ const Intro = {
     // eggs already warm — the swarm starts hatching almost at once
     for (const s of World.spawners)
       for (const eg of s.eggs) eg.t = EGG_T * (0.35 + Math.random() * 0.8);
-    // guaranteed burst at the two southern hives the camera visits
-    for (const s of World.spawners.slice(2)) {
-      for (let i = 0; i < 6; i++) {
+    // guaranteed opening wave — every hive vomits a pack before the eggs even pop
+    for (const s of World.spawners) {
+      for (let i = 0; i < 8; i++) {
         const p = s.pos.clone();
         p.x += (Math.random() - .5) * 7; p.z += (Math.random() - .5) * 7;
         spawnEnemy('zergling', p);
@@ -605,16 +605,17 @@ const Intro = {
       }
     }
 
-    // kills land where someone's actually aiming — victim is a shooter's target
-    if (t > 6.5 && t < 19) {
+    // kills land where someone's actually aiming — the wall SHREDS the first waves
+    if (t > 6.0 && t < 20.5) {
       this.killT -= dt;
       if (this.killT <= 0) {
-        this.killT = 0.4 + Math.random() * .3;
+        this.killT = 0.09 + Math.random() * .07;
         const shooters = this.storyMarines.filter(m => !m.userData.fell && m.userData.tgt);
-        if (shooters.length) {
-          const v = shooters[Math.floor(Math.random() * shooters.length)].userData.tgt;
+        for (let k = 0; k < Math.min(2, shooters.length); k++) {
+          const v = shooters.splice(Math.floor(Math.random() * shooters.length), 1)[0].userData.tgt;
+          if (v.sd) continue;
           v.sd = true;
-          try { bloodBurst(v.mesh.position.clone().setY(.4), 5); } catch (e) {}
+          try { bloodBurst(v.mesh.position.clone().setY(.4), 6); } catch (e) {}
         }
       }
     }
