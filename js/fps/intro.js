@@ -40,10 +40,9 @@ const Intro = {
     fl.rotation.x = -Math.PI / 2; s.add(fl);
     const ce = new THREE.Mesh(new THREE.PlaneGeometry(12, 14), wall);
     ce.rotation.x = Math.PI / 2; ce.position.y = 4; s.add(ce);
-    // back wall — wide hangar gap so the pad/base outside stays in view
+    // back wall — full-height 6-wide bay so the pad/base outside stays in view
     B(3, 4, .2, wall, -4.5, 2, -6);
     B(3, 4, .2, wall, 4.5, 2, -6);
-    B(6, .6, .2, wall, 0, 3.7, -6);
     B(.1, .04, 6, glowC, -3, .015, -6);                 // threshold strips
     B(.1, .04, 6, glowC, 3, .015, -6);
     B(.2, 4, 14, wall, -6, 2, 0);                       // side walls
@@ -82,15 +81,15 @@ const Intro = {
 
     /* --- your base on the pad outside — lifts off and warps away --- */
     const apron = new THREE.Mesh(new THREE.PlaneGeometry(14, 10), floor);
-    apron.rotation.x = -Math.PI / 2; apron.position.set(0, .012, -11); s.add(apron);
-    B(4.4, .12, 4.4, joint, 0, .06, -11.5);             // landing pad
-    B(.12, .02, 4.4, glowC, -2.1, .125, -11.5);         // pad edge lights
-    B(.12, .02, 4.4, glowC, 2.1, .125, -11.5);
+    apron.rotation.x = -Math.PI / 2; apron.position.set(0, .012, -9); s.add(apron);
+    B(4.4, .12, 4.4, joint, 0, .06, -9);                // landing pad
+    B(.12, .02, 4.4, glowC, -2.1, .125, -9);            // pad edge lights
+    B(.12, .02, 4.4, glowC, 2.1, .125, -9);
     const glowO = new THREE.MeshBasicMaterial({ color: 0xff8a2a });
-    const base = this.base = new THREE.Group(); base.position.set(0, .12, -11.5); s.add(base);
+    const base = this.base = new THREE.Group(); base.position.set(0, .12, -9); s.add(base);
     B(2.6, .5, 2.2, wall, 0, .37, 0, base);             // skirt
     B(2.1, 1.1, 1.7, armor, 0, 1.15, 0, base);          // hull
-    B(1.5, .6, 1.2, armorD, 0, 1.95, 0, base);          // upper deck
+    B(1.5, .6, 1.2, joint, 0, 1.95, 0, base);           // upper deck
     B(.6, .35, .6, armor, 0, 2.35, 0, base);            // crown
     B(.06, 1, .06, joint, .8, 2.4, 0, base);            // antenna
     B(.1, .1, .1, glowC, .8, 2.95, 0, base);            // beacon
@@ -103,12 +102,12 @@ const Intro = {
       B(.34, .2, .34, glowO, tx, -.16, 0, this.thrusters);
     this.thrusters.visible = false;
     this.baseLight = new THREE.PointLight(0x6aa8ff, .8, 18);
-    this.baseLight.position.set(0, 3, -9.5); s.add(this.baseLight);
+    this.baseLight.position.set(0, 3, -7.5); s.add(this.baseLight);
     // warp-out streak — flat flash column where the base stood
     this.warp = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 9),
       new THREE.MeshBasicMaterial({ color: 0xaee4ff, transparent: true, opacity: 0,
         blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-    this.warp.position.set(0, 4.5, -11.5); this.warp.visible = false; s.add(this.warp);
+    this.warp.position.set(0, 4.5, -9); this.warp.visible = false; s.add(this.warp);
     // dust puff pool — sprites with a soft radial texture, reused per liftoff
     const dc = document.createElement('canvas'); dc.width = dc.height = 64;
     const dg = dc.getContext('2d');
@@ -270,11 +269,11 @@ const Intro = {
       if (t - dt < 5.0 && t >= 5.0) Audio2.say('Suit sealed. All systems nominal.', { rate: .95 });
       // look front → turn back to watch the pad → back to the door
       let ly = 1.5, lz = 8;
-      if (t >= 5.4 && t < 6.1) lz = _lz(8, -12, _ez((t - 5.4) / .7));
-      else if (t >= 6.1 && t < 9.9) { lz = -12; ly = 1.5 + this.base.position.y * .32; }
+      if (t >= 5.4 && t < 6.1) lz = _lz(8, -10, _ez((t - 5.4) / .7));
+      else if (t >= 6.1 && t < 9.9) { lz = -10; ly = 1.5 + this.base.position.y * .34; }
       else if (t >= 9.9) {
         const k = _ez((t - 9.9) / .5);
-        lz = _lz(-12, 8, k); ly = _lz(1.5 + this.base.position.y * .32, 1.5, k);
+        lz = _lz(-10, 8, k); ly = _lz(1.5 + this.base.position.y * .34, 1.5, k);
       }
       this.look.set(0, ly, lz);
       // liftoff — thrusters flare, dust blasts out, the base climbs
@@ -286,7 +285,7 @@ const Intro = {
         Audio2.say('Command center lifting off.', { rate: .95 });
       }
       if (t >= 6.6 && t < 9.4) {
-        this.base.position.y = .12 + _ez((t - 6.6) / 2.8) * 13;
+        this.base.position.y = .12 + _ez((t - 6.6) / 2.8) * 10;
         this.thrusters.children.forEach((c, i) =>
           c.scale.y = 1 + Math.sin(t * 30 + i * 2) * .3);
       }
