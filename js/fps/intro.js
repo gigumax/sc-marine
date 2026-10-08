@@ -75,35 +75,49 @@ const Intro = {
     this.outLight = new THREE.PointLight(0xfff0d0, 0, 14);
     this.outLight.position.set(0, 2, 7.5); s.add(this.outLight);
 
-    /* --- the CMC suit on its rack — front (+z) faces the room --- */
+    /* --- the CMC suit on its rack — the real battle mesh, front (+z) out --- */
     const suit = new THREE.Group(); s.add(suit);
     B(.5, .08, .5, joint, 0, .04, -.2, suit);                       // rack base
     B(.1, 1.9, .1, joint, 0, .95, -.48, suit);                      // rack post
     B(.14, .3, .14, joint, 0, 1.75, -.42, suit);                    // head mount
-    B(.2, .13, .32, armor, -.16, .07, 0, suit);                     // boots
-    B(.2, .13, .32, armor, .16, .07, 0, suit);
-    B(.17, .6, .24, armor, -.16, .43, 0, suit);                     // legs
-    B(.17, .6, .24, armor, .16, .43, 0, suit);
-    B(.22, .1, .28, armor, -.16, .72, .02, suit);                   // knee plates
-    B(.22, .1, .28, armor, .16, .72, .02, suit);
-    B(.6, .72, .16, armor, 0, 1.14, -.18, suit);                    // back plate
-    B(.12, .6, .34, armor, -.3, 1.14, 0, suit);                     // rib sides
-    B(.12, .6, .34, armor, .3, 1.14, 0, suit);
-    B(.46, .58, .34, dark, 0, 1.14, 0, suit);                       // dark cavity
-    B(.34, .2, .36, armor, -.4, 1.56, 0, suit);                     // shoulders
-    B(.34, .2, .36, armor, .4, 1.56, 0, suit);
-    B(.12, .5, .16, armor, -.4, 1.22, 0, suit);                     // hanging arms
-    B(.12, .5, .16, armor, .4, 1.22, 0, suit);
-    B(.28, .26, .3, armor, 0, 1.88, 0, suit);                       // helmet
-    B(.22, .06, .03, glowC, 0, 1.9, .16, suit);                     // visor slit
-    // chest plate — hinged at its top edge, swings up to open
-    this.chest = new THREE.Group();
-    this.chest.position.set(0, 1.5, .3);
-    const plate = B(.52, .62, .07, armor, 0, -.31, 0, this.chest);
-    B(.3, .1, .02, glowC, 0, -.2, .05, this.chest);                 // chest light
-    plate.material = armor;
-    suit.add(this.chest);
-    this.chest.rotation.x = -1.75;                                  // start open
+    B(.1, .2, .3, joint, -.34, 1.5, -.3, suit);                     // shoulder clamps
+    B(.1, .2, .3, joint, .34, 1.5, -.3, suit);
+
+    const body = buildMarineMesh(0x4ad0ff);                         // battle suit, cyan trim
+    const gun = body.children.find(c => c.isGroup);                 // rifle stays on the rack's rack
+    if (gun) body.remove(gun);
+    body.userData.barBg.visible = body.userData.barFg.visible = false;
+    suit.add(body);
+
+    // dark entry cavity the panels reveal + a lit core to sell the tech
+    B(.5, .66, .05, dark, 0, 1.18, .2, body);
+    const core = B(.16, .16, .03, glowC, 0, 1.18, .215, body);
+    core.material = core.material.clone();
+    this.core = core;
+
+    /* chest = four panels, each pivots on the diagonal axis of its own
+       corner — they iris open like a high-tech hatch */
+    this.panels = [];
+    for (const [cx, cy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
+      const pivot = new THREE.Group();
+      pivot.position.set(cx * .135, 1.18 + cy * .17, .27);
+      pivot.userData.axis = new THREE.Vector3(cx, cy, 0).normalize();
+      const plate = B(.26, .33, .06, armor, 0, 0, 0, pivot);
+      plate.material = plate.material.clone();
+      plate.material.color.setHex(0x36495e);
+      B(.05, .05, .065, glowC, -cx * .06, -cy * .08, 0, pivot);     // corner light
+      body.add(pivot);
+      this.panels.push(pivot);
+    }
+    this.setChest(1);                                               // start open
+  },
+
+  /* 1 = iris fully open, 0 = sealed shut */
+  setChest(open) {
+    const ang = open * 1.85;
+    for (const p of this.panels)
+      p.quaternion.setFromAxisAngle(p.userData.axis, ang);
+    if (this.core) this.core.material.emissiveIntensity = .3 + open * 2.2;
   },
 
   /* ---------- run ---------- */
@@ -116,7 +130,7 @@ const Intro = {
     this.playing = true; this.armed = false;
     this.t = 0; this.cb = cb;
     // reset animatables
-    this.chest.rotation.x = -1.75;
+    this.setChest(1);
     this.door.position.y = 1.35;
     this.doorGlow.material.opacity = .06;
     this.outLight.intensity = 0;
@@ -175,7 +189,7 @@ const Intro = {
       this.look.set(0, _lz(1.25, 1.5, k), _lz(.25, 8, k));
     } else if (t < 4.7) {                            // — chest seals shut —
       const k = _ez((t - 4.0) / .7);
-      this.chest.rotation.x = _lz(-1.75, 0, k);
+      this.setChest(1 - k);
       if (t - dt < 4.0) Audio2.tone(70, .25, 'square', .25, 40);   // heavy clunk
       if (t - dt < 4.4 && t >= 4.4) Audio2.noise(.2, .15, 900, 1); // pneumatic seal
       const v = document.getElementById('intro-visor');
