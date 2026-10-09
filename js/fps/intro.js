@@ -43,12 +43,33 @@ const Intro = {
     p.position.set(m.position.x, .02 + Math.random() * .012, m.position.z);
     p.rotation.x = -Math.PI / 2; p.scale.setScalar(.9 + Math.random() * .5);
     Enemies.scene.add(p); this.storyBlood.push(p);
-    for (let i = 0; i < 2; i++) {                  // red stains where the claws went in
-      const w = new THREE.Mesh(_bloodBlobGeo, _bloodMat);
-      w.position.set((Math.random() - .5) * .34, .85 + Math.random() * .4, .17);
-      w.scale.setScalar(.6 + Math.random() * .9);
-      m.add(w);                                    // rides along — visible once he's on his back
-    }
+    this.marineWound(m); this.marineWound(m);
+  },
+
+  marineWound(m) {                               // one red stain where the claws went in
+    const w = new THREE.Mesh(_bloodBlobGeo, _bloodMat);
+    w.position.set((Math.random() - .5) * .34, .85 + Math.random() * .4, .17);
+    w.scale.setScalar(.6 + Math.random() * .9);
+    m.add(w);                                    // rides along — visible once he's on his back
+  },
+
+  marineHit(mr, dmg, kx, kz) {                   // armor soaks hits — he falls when hp runs out
+    const ud = mr.userData;
+    if (ud.fell) return true;
+    if (ud.hp === undefined) ud.hp = 3;
+    ud.hp -= dmg;
+    ud.kx = (ud.kx || 0) + kx; ud.kz = (ud.kz || 0) + kz;
+    try {
+      bloodBurst(mr.position.clone().setY(.7), 5);
+      this.marineWound(mr);                      // stains stack per hit
+      Audio2.hitAt(5 + dmg * 2);
+      if (ud.hp <= 0) {
+        ud.fell = true;                          // finally dragged down
+        this.marineBlood(mr);
+        Audio2.screech(10);
+      }
+    } catch (e) {}
+    return ud.fell;
   },
 
   fatigueMesh(accent) {                          // trooper out of armor — fatigues + squad-color cap
@@ -76,7 +97,7 @@ const Intro = {
   build() {
     const s = this.scene = new THREE.Scene();
     s.background = new THREE.Color(0x06090f);
-    s.fog = new THREE.Fog(0x06090f, 7, 30);
+    s.fog = new THREE.Fog(0x06090f, 9, 46);
 
     const armor = new THREE.MeshStandardMaterial({ color: 0x2a3542, roughness: .6, metalness: .35 });
     const joint = new THREE.MeshStandardMaterial({ color: 0x141a22, roughness: .95 });
@@ -93,58 +114,58 @@ const Intro = {
       return b;
     };
 
-    /* --- barracks box: 12 wide, 4 high, door wall at z=+6 --- */
-    const fl = new THREE.Mesh(new THREE.PlaneGeometry(12, 14), floor);
+    /* --- barracks hall: 22 wide, 6 high, 26 deep — door wall at z=+12 --- */
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(22, 26), floor);
     fl.rotation.x = -Math.PI / 2; s.add(fl);
-    const ce = new THREE.Mesh(new THREE.PlaneGeometry(12, 14), wall);
-    ce.rotation.x = Math.PI / 2; ce.position.y = 4; s.add(ce);
+    const ce = new THREE.Mesh(new THREE.PlaneGeometry(22, 26), wall);
+    ce.rotation.x = Math.PI / 2; ce.position.y = 6; s.add(ce);
     // back wall — full-height 6-wide bay so the pad/base outside stays in view
-    B(3, 4, .2, wall, -4.5, 2, -6);
-    B(3, 4, .2, wall, 4.5, 2, -6);
-    B(.1, .04, 6, glowC, -3, .015, -6);                 // threshold strips
-    B(.1, .04, 6, glowC, 3, .015, -6);
-    B(.2, 4, 14, wall, -6, 2, 0);                       // side walls
-    B(.2, 4, 14, wall, 6, 2, 0);
+    B(8, 6, .2, wall, -7, 3, -12);
+    B(8, 6, .2, wall, 7, 3, -12);
+    B(.1, .04, 6, glowC, -3, .015, -12);                // threshold strips
+    B(.1, .04, 6, glowC, 3, .015, -12);
+    B(.2, 6, 26, wall, -11, 3, 0);                      // side walls
+    B(.2, 6, 26, wall, 11, 3, 0);
     // door wall — two panels + lintel leave a 1.8 x 2.7 doorway
-    B(5.1, 4, .2, wall, -3.45, 2, 6);
-    B(5.1, 4, .2, wall, 3.45, 2, 6);
-    B(1.8, 1.3, .2, wall, 0, 3.35, 6);
-    this.door = B(1.8, 2.7, .14, armor, 0, 1.35, 6);    // slides up
-    B(.08, 2.7, .1, glowC, -0.98, 1.35, 5.95);          // frame strips
-    B(.08, 2.7, .1, glowC, 0.98, 1.35, 5.95);
+    B(10.1, 6, .2, wall, -5.95, 3, 12);
+    B(10.1, 6, .2, wall, 5.95, 3, 12);
+    B(1.8, 3.3, .2, wall, 0, 4.35, 12);
+    this.door = B(1.8, 2.7, .14, armor, 0, 1.35, 12);   // slides up
+    B(.08, 2.7, .1, glowC, -0.98, 1.35, 11.95);         // frame strips
+    B(.08, 2.7, .1, glowC, 0.98, 1.35, 11.95);
     // floor guide strips running to the door
-    B(.1, .02, 11, glowC, -0.9, .01, 0);
-    B(.1, .02, 11, glowC, 0.9, .01, 0);
-    // ceiling light bars
-    B(3, .06, .5, glowW, 0, 3.96, 2.2);
-    B(3, .06, .5, glowW, 0, 3.96, -2.2);
+    B(.1, .02, 23, glowC, -0.9, .01, 0);
+    B(.1, .02, 23, glowC, 0.9, .01, 0);
+    // ceiling light bars down the aisle
+    for (const lz of [-8, -3, 2, 7]) B(4, .06, .6, glowW, 0, 5.96, lz);
     // exit tunnel behind the door — ends in blown-out light
-    B(.15, 3.2, 4, wall, -1, 1.6, 8);
-    B(.15, 3.2, 4, wall, 1, 1.6, 8);
-    B(2, .15, 4, wall, 0, 3.2, 8);
+    B(.15, 3.2, 4, wall, -1, 1.6, 14);
+    B(.15, 3.2, 4, wall, 1, 1.6, 14);
+    B(2, .15, 4, wall, 0, 3.2, 14);
     const tunnelFl = new THREE.Mesh(new THREE.PlaneGeometry(2, 4), floor);
-    tunnelFl.rotation.x = -Math.PI / 2; tunnelFl.position.set(0, 0, 8); s.add(tunnelFl);
+    tunnelFl.rotation.x = -Math.PI / 2; tunnelFl.position.set(0, 0, 14); s.add(tunnelFl);
     this.doorGlow = new THREE.Mesh(new THREE.PlaneGeometry(2, 3.4), glowW);
-    this.doorGlow.position.set(0, 1.6, 9.8);
+    this.doorGlow.position.set(0, 1.6, 15.8);
     this.doorGlow.rotation.y = Math.PI;
     this.doorGlow.material.transparent = true;
     this.doorGlow.material.opacity = 0.06;              // sealed — barely leaks
     s.add(this.doorGlow);
 
     s.add(new THREE.AmbientLight(0x2a3a4d, .85));
-    const key = new THREE.PointLight(0x8fc8ff, .9, 18); key.position.set(0, 3.4, 2.2); s.add(key);
-    const rim = new THREE.PointLight(0x4ad0ff, .5, 10); rim.position.set(-3, 2.2, -3); s.add(rim);
-    this.outLight = new THREE.PointLight(0xfff0d0, 0, 14);
-    this.outLight.position.set(0, 2, 7.5); s.add(this.outLight);
+    const key = new THREE.PointLight(0x8fc8ff, 1.1, 30); key.position.set(0, 5.2, 2); s.add(key);
+    const rim = new THREE.PointLight(0x4ad0ff, .5, 16); rim.position.set(-6, 3, -6); s.add(rim);
+    const rim2 = new THREE.PointLight(0x4ad0ff, .5, 16); rim2.position.set(6, 3, -6); s.add(rim2);
+    this.outLight = new THREE.PointLight(0xfff0d0, 0, 16);
+    this.outLight.position.set(0, 2, 13.5); s.add(this.outLight);
 
     /* --- your base on the pad outside — lifts off and warps away --- */
-    const apron = new THREE.Mesh(new THREE.PlaneGeometry(14, 10), floor);
-    apron.rotation.x = -Math.PI / 2; apron.position.set(0, .012, -9); s.add(apron);
-    B(4.4, .12, 4.4, joint, 0, .06, -9);                // landing pad
-    B(.12, .02, 4.4, glowC, -2.1, .125, -9);            // pad edge lights
-    B(.12, .02, 4.4, glowC, 2.1, .125, -9);
+    const apron = new THREE.Mesh(new THREE.PlaneGeometry(20, 14), floor);
+    apron.rotation.x = -Math.PI / 2; apron.position.set(0, .012, -19); s.add(apron);
+    B(4.4, .12, 4.4, joint, 0, .06, -17);               // landing pad
+    B(.12, .02, 4.4, glowC, -2.1, .125, -17);           // pad edge lights
+    B(.12, .02, 4.4, glowC, 2.1, .125, -17);
     const glowO = new THREE.MeshBasicMaterial({ color: 0xff8a2a });
-    const base = this.base = new THREE.Group(); base.position.set(0, .12, -9); s.add(base);
+    const base = this.base = new THREE.Group(); base.position.set(0, .12, -17); s.add(base);
     B(2.6, .5, 2.2, wall, 0, .37, 0, base);             // skirt
     B(2.1, 1.1, 1.7, armor, 0, 1.15, 0, base);          // hull
     B(1.5, .6, 1.2, joint, 0, 1.95, 0, base);           // upper deck
@@ -155,8 +176,8 @@ const Intro = {
     B(1.6, .06, .02, glowC, 0, 1.35, .86, base);
     for (const lx of [-1.05, 1.05]) for (const lz of [-.8, .8])
       B(.2, .4, .2, joint, lx, .2, lz, base);           // landing legs
-    this.baseLight = new THREE.PointLight(0x6aa8ff, .8, 18);
-    this.baseLight.position.set(0, 3, -7.5); s.add(this.baseLight);
+    this.baseLight = new THREE.PointLight(0x6aa8ff, .8, 20);
+    this.baseLight.position.set(0, 3, -14); s.add(this.baseLight);
 
     /* --- the CMC suit on its rack — the real battle mesh, front (+z) out --- */
     const suit = this.suit = new THREE.Group(); s.add(suit);
@@ -185,16 +206,38 @@ const Intro = {
 
     /* --- your squad billets here — two ranks at ease flanking the aisle --- */
     this.squadList = [];
+    // every billet gets a personal suit rack parked on the wall side —
+    // marine rigs for the rank and file, a marauder suit for each file's lead
+    const mkRack = (unit, accent) => {
+      const rk = new THREE.Group();
+      B(.5, .08, .5, joint, 0, .04, -.2, rk);             // rack base
+      B(.1, 1.9, .1, joint, 0, .95, -.48, rk);            // rack post
+      B(.14, .3, .14, joint, 0, 1.75, -.42, rk);          // head mount
+      B(.1, .2, .3, joint, -.34, 1.5, -.3, rk);           // shoulder clamps
+      B(.1, .2, .3, joint, .34, 1.5, -.3, rk);
+      B(.1, .04, .1, glowC, 0, .04, .1, rk);              // rack status light
+      const body = (unit === 'marauder' ? buildMarauderMesh : buildMarineMesh)(accent);
+      const gun = body.userData.gun || body.children.find(c => c.isGroup);
+      if (gun) body.remove(gun);                          // weapon lockers are elsewhere
+      if (body.userData.barBg)
+        body.userData.barBg.visible = body.userData.barFg.visible = false;
+      rk.add(body);
+      return rk;
+    };
     const SLOT_POS = [
-      [-2.15, -3.5], [-2.15, -2.22], [-2.15, -0.94], [-2.15, 0.34], [-2.15, 1.62], [-2.15, 2.9], [-2.15, 4.1],
-      [ 2.15, -2.85], [ 2.15, -1.57], [ 2.15, -0.29], [ 2.15, 0.99], [ 2.15, 2.27], [ 2.15, 3.55], [ 2.15, 4.1],
+      [-3.4, -4.6], [-3.4, -3.07], [-3.4, -1.53], [-3.4, 0], [-3.4, 1.53], [-3.4, 3.07], [-3.4, 4.6],
+      [ 3.4, -3.85], [ 3.4, -2.32], [ 3.4, -0.78], [ 3.4, 0.75], [ 3.4, 2.28], [ 3.4, 3.82], [ 3.4, 5.35],
     ];
     for (let i = 0; i < Allies.names.length; i++) {
       const isLead = i === 0 || i === 7;                            // a commander heads each file
       const bare = this.fatigueMesh(Allies.accents[i]);             // at ease — armor stays racked
       s.add(bare);
       const [sx, sz] = SLOT_POS[i];
-      const go = 9.0 + (4.1 - sz) * 0.30;                           // front rank leaves first
+      const rk = mkRack(isLead ? 'marauder' : 'marine', Allies.accents[i]);
+      rk.position.set(sx + (sx < 0 ? -2.0 : 2.0), 0, sz);           // their rig behind them
+      rk.rotation.y = sx < 0 ? Math.PI / 2 : -Math.PI / 2;          // suit faces the aisle
+      s.add(rk);
+      const go = 9.0 + (5.4 - sz) * 0.30;                           // front rank leaves first
       this.squadList.push({
         m: bare, bare, suited: null,                                // 'suited' swaps in on deploy
         isLead, accent: Allies.accents[i],
@@ -243,7 +286,7 @@ const Intro = {
         m.position.z += 2.3 * dt;
         m.rotation.y += (0 - m.rotation.y) * Math.min(1, dt * 5);   // square on the door
         m.position.y = Math.abs(Math.sin(t * 11 + s.ph)) * .07;     // march step
-        if (m.position.z > 9.2) m.visible = false;                  // swallowed by the light
+        if (m.position.z > 15.4) m.visible = false;                 // swallowed by the light
       } else {
         m.position.y = Math.sin(t * 1.1 + s.ph) * .012;             // idle breath
         m.rotation.y = s.ry + Math.sin(t * .45 + s.ph) * .05;
@@ -552,15 +595,13 @@ const Intro = {
         e.mesh.rotation.x = -Math.sin(Math.PI * k) * .55;
         if (L.t >= 1) {
           e.storyLeap = null; e.mesh.rotation.x = 0; mp.y = 0;
-          if (!L.mr.userData.fell) {                     // lands ON the marine — drags him down
-            L.mr.userData.fell = true;
-            try {
-              bloodBurst(mr.clone().setY(.7), 8);
-              this.marineBlood(L.mr);
-              Audio2.hitAt(9); Audio2.screech(12);       // scream cut short
-            } catch (er) {}
+          if (!L.mr.userData.fell) {                     // lands ON the marine — wounds, not kills
+            const pk = 2.6 / (Math.hypot(mr.x - L.fx, mr.z - L.fz) || 1);
+            this.marineHit(L.mr, 1, (mr.x - L.fx) * pk, (mr.z - L.fz) * pk);
+            try { Audio2.screech(12); } catch (er) {}
           }
           e.storyMar = null;
+          e.storyRet = .3 + Math.random() * .4;          // a beat on the body before the next hop
         }
       } else {
         if (t > 9.0 && e.storyMar && !e.storyMar.userData.fell) {
@@ -584,6 +625,13 @@ const Intro = {
           mp.y += (.18 - mp.y) * Math.min(1, dt * 4);
           mp.x += Math.sin(t * 3 + e.storyPh) * dt * .5;
           mp.z += Math.cos(t * 2.4 + e.storyPh) * dt * .4;
+          if (e.storyMar && !e.storyMar.userData.fell) { // ON him — rake with the claws
+            e.clawT = (e.clawT || 0) - dt;
+            if (e.clawT <= 0) {
+              e.clawT = .5 + Math.random() * .35;
+              this.marineHit(e.storyMar, 1, 0, 0);
+            }
+          }
         }
       }
       const legs = e.mesh.userData.legs || [];
@@ -640,6 +688,12 @@ const Intro = {
         if (Math.abs(1.45 - m.rotation.x) < .04 && Math.hypot(ud.kx || 0, ud.kz || 0) < .15) {
           m.rotation.x = 1.45; ud.kx = ud.kz = 0; ud.fellDone = true;
         }
+        continue;
+      }
+      if (ud.kx || ud.kz) {                              // knocked back — reels, can't shoot
+        m.position.x += ud.kx * dt; m.position.z += ud.kz * dt;
+        ud.kx *= Math.max(0, 1 - dt * 5); ud.kz *= Math.max(0, 1 - dt * 5);
+        if (Math.hypot(ud.kx, ud.kz) < .15) ud.kx = ud.kz = 0;
         continue;
       }
       // acquire closest live ling
@@ -711,14 +765,9 @@ const Intro = {
           if (ud.fell) continue;
           const cd = Math.hypot(mr.position.x - up.x, mr.position.z - up.z);
           if (cd < 2.4) {
-            ud.fell = true;
-            ud.kx = (mr.position.x - up.x) / cd * 9;      // punt them off the blades
-            ud.kz = (mr.position.z - up.z) / cd * 9;
-            try {
-              bloodBurst(mr.position.clone().setY(.8), 7);
-              this.marineBlood(mr);
-              Audio2.hitAt(10); Audio2.screech(10);
-            } catch (e) {}
+            const pk = 9 / cd;
+            this.marineHit(mr, 2, (mr.position.x - up.x) * pk, (mr.position.z - up.z) * pk);
+            try { Audio2.screech(10); } catch (e) {}
             if (++pair >= 2) break;
           }
         }
@@ -749,14 +798,8 @@ const Intro = {
         if (mr.userData.fell) continue;
         const ddx = mr.position.x - up.x, ddz = mr.position.z - up.z;
         if (ddx * ddx + ddz * ddz < 7.3) {
-          mr.userData.fell = true;
           const k = 9 / (Math.hypot(ddx, ddz) || 1);
-          mr.userData.kx = ddx * k; mr.userData.kz = ddz * k;
-          try {
-            bloodBurst(mr.position.clone().setY(.7), 6);
-            this.marineBlood(mr);
-            Audio2.hitAt(7);                             // flattened under a hoof
-          } catch (e) {}
+          this.marineHit(mr, 2, ddx * k, ddz * k);       // hoof-checked — twice if he's tough
         }
       }
       for (const c of this.storyCivs) {
