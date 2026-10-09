@@ -237,7 +237,7 @@ const Intro = {
       rk.position.set(sx + (sx < 0 ? -2.0 : 2.0), 0, sz);           // their rig behind them
       rk.rotation.y = sx < 0 ? Math.PI / 2 : -Math.PI / 2;          // suit faces the aisle
       s.add(rk);
-      const go = 9.0 + (5.4 - sz) * 0.30;                           // front rank leaves first
+      const go = 9.0 + (5.4 - sz) * 0.23;                           // front rank leaves first
       this.squadList.push({
         m: bare, bare, suited: null,                                // 'suited' swaps in on deploy
         isLead, accent: Allies.accents[i],
@@ -283,7 +283,7 @@ const Intro = {
       const m = s.m;
       if (marching && t > s.go) {
         m.position.x += (s.lane - m.position.x) * Math.min(1, dt * 4);
-        m.position.z += 2.3 * dt;
+        m.position.z += 3.4 * dt;
         m.rotation.y += (0 - m.rotation.y) * Math.min(1, dt * 5);   // square on the door
         m.position.y = Math.abs(Math.sin(t * 11 + s.ph)) * .07;     // march step
         if (m.position.z > 15.4) m.visible = false;                 // swallowed by the light
@@ -1079,14 +1079,14 @@ const Intro = {
       if (KEYS[' '] && p.y <= 0) { this.vY = 5.4; Audio2.jump(); }
       this.vY -= 16 * dt; p.y += this.vY * dt;
       if (p.y <= 0) { p.y = 0; this.vY = 0; }
-      p.z = Math.max(-13.4, Math.min(9.4, p.z));
-      if (p.z > 5.2 && Math.abs(p.x) > 0.68) p.z = 5.2;      // doorway funnel
-      if (p.z < -5.2 && Math.abs(p.x) > 2.6) p.z = -5.2;     // bay mouth
-      if (p.z > 5.2) p.x = Math.max(-0.68, Math.min(0.68, p.x));
-      else if (p.z >= -5.2) p.x = Math.max(-5.3, Math.min(5.3, p.x));
-      else p.x = Math.max(-6.3, Math.min(6.3, p.x));         // apron
+      p.z = Math.max(-21.4, Math.min(15.4, p.z));
+      if (p.z > 11.2 && Math.abs(p.x) > 0.68) p.z = 11.2;    // doorway funnel
+      if (p.z < -11.2 && Math.abs(p.x) > 2.6) p.z = -11.2;   // bay mouth
+      if (p.z > 11.2) p.x = Math.max(-0.68, Math.min(0.68, p.x));
+      else if (p.z >= -11.2) p.x = Math.max(-10.3, Math.min(10.3, p.x));
+      else p.x = Math.max(-9.3, Math.min(9.3, p.x));         // apron
       const sdx = p.x, sdz = p.z + 0.2, sd = sdx * sdx + sdz * sdz; // don't clip the rig
-      if (sd < 0.30 && p.z >= -5.2 && p.z <= 5.2) {
+      if (sd < 0.30 && p.z >= -11.2 && p.z <= 11.2) {
         const d = Math.sqrt(sd) || .01, k = 0.55 / d;
         p.x = sdx * k; p.z = -0.2 + sdz * k;
       }
@@ -1145,7 +1145,7 @@ const Intro = {
     } else if (t < 4.0) {                            // — step in, turn to the door —
       const k = _ez((t - 2.6) / 1.4);
       cam.position.set(0, _lz(1.42, 1.3, k), _lz(1.15, .02, k));
-      this.look.set(0, _lz(1.25, 1.5, k), _lz(.25, 8, k));
+      this.look.set(0, _lz(1.25, 1.5, k), _lz(.25, 14, k));
     } else if (t < 4.7) {                            // — chest seals shut —
       const k = _ez((t - 4.0) / .7);
       this.setChest(1 - k);
@@ -1158,10 +1158,10 @@ const Intro = {
       if (t - dt < 4.7) Audio2.tone(120, .3, 'sine', .1, 60);      // suit hum on
       if (t - dt < 5.0 && t >= 5.0) Audio2.say('Suit sealed. All systems nominal.', { rate: .95 });
       // glance back at the pad — your ride waits — then square on the door
-      let lz = 8;
-      if (t >= 5.6 && t < 6.3) lz = _lz(8, -10, _ez((t - 5.6) / .7));
-      else if (t >= 6.3 && t < 7.7) lz = -10;
-      else if (t >= 7.7) lz = _lz(-10, 8, _ez(Math.min(1, (t - 7.7) / .6)));
+      let lz = 14;
+      if (t >= 5.6 && t < 6.3) lz = _lz(14, -18, _ez((t - 5.6) / .7));
+      else if (t >= 6.3 && t < 7.7) lz = -18;
+      else if (t >= 7.7) lz = _lz(-18, 14, _ez(Math.min(1, (t - 7.7) / .6)));
       this.look.set(0, 1.5, lz);
       if (t - dt < 6.4 && t >= 6.4)
         Audio2.say('Command center holding on the pad.', { rate: .95 });
@@ -1173,8 +1173,8 @@ const Intro = {
       if (t - dt < 8.6) Audio2.noise(.8, .2, 300, .7);             // servo rumble
     } else if (t < 12.6) {                           // — walk out the door —
       const k = _ez((t - 10.2) / 2.4);
-      cam.position.set(0, 1.3, _lz(.02, 7.6, k));
-      this.look.set(0, 1.5, 12);
+      cam.position.set(0, 1.3, _lz(.02, 14.8, k));
+      this.look.set(0, 1.5, 18);
       if (t > 11.4) {                                // white-out into the drop
         fade.style.background = '#fff';
         fade.style.opacity = Math.min(1, (t - 11.4) / 1.1);
