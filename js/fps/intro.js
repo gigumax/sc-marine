@@ -9,9 +9,9 @@ const _ez = x => x * x * (3 - 2 * x);           // smoothstep
 const _lz = (a, b, x) => a + (b - a) * x;
 const _flameGeo = new THREE.ConeGeometry(.55, 1.5, 6);
 const _flameMat = new THREE.MeshBasicMaterial({ color: 0xff7a1e, transparent: true, opacity: .8 });
-const _bloodGeo = new THREE.CircleGeometry(.8, 10);
-const _bloodBlobGeo = new THREE.SphereGeometry(.12, 5, 4);
-const _bloodMat = new THREE.MeshStandardMaterial({ color: 0x7a1010, roughness: .95 });
+const _poolGeo = new THREE.CircleGeometry(.8, 10);          // ground pool under a corpse
+const _woundGeo = new THREE.SphereGeometry(.12, 5, 4);      // welt stuck to the armor
+const _woundMat = new THREE.MeshStandardMaterial({ color: 0x7a1010, roughness: .95 });
 
 const Intro = {
   playing: false, menu: false, visiting: false, t: 0, menuT: 0, cb: null,
@@ -39,7 +39,7 @@ const Intro = {
   },
 
   marineBlood(m) {                               // pool under the corpse + welts on the armor
-    const p = new THREE.Mesh(_bloodGeo, _bloodMat);
+    const p = new THREE.Mesh(_poolGeo, _woundMat);
     p.position.set(m.position.x, .02 + Math.random() * .012, m.position.z);
     p.rotation.x = -Math.PI / 2; p.scale.setScalar(.9 + Math.random() * .5);
     Enemies.scene.add(p); this.storyBlood.push(p);
@@ -47,7 +47,7 @@ const Intro = {
   },
 
   marineWound(m) {                               // one red stain where the claws went in
-    const w = new THREE.Mesh(_bloodBlobGeo, _bloodMat);
+    const w = new THREE.Mesh(_woundGeo, _woundMat);
     w.position.set((Math.random() - .5) * .34, .85 + Math.random() * .4, .17);
     w.scale.setScalar(.6 + Math.random() * .9);
     m.add(w);                                    // rides along — visible once he's on his back
