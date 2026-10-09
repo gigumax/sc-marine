@@ -9,6 +9,9 @@ const _ez = x => x * x * (3 - 2 * x);           // smoothstep
 const _lz = (a, b, x) => a + (b - a) * x;
 const _flameGeo = new THREE.ConeGeometry(.55, 1.5, 6);
 const _flameMat = new THREE.MeshBasicMaterial({ color: 0xff7a1e, transparent: true, opacity: .8 });
+const _bloodGeo = new THREE.CircleGeometry(.8, 10);
+const _bloodBlobGeo = new THREE.SphereGeometry(.12, 5, 4);
+const _bloodMat = new THREE.MeshStandardMaterial({ color: 0x7a1010, roughness: .95 });
 
 const Intro = {
   playing: false, menu: false, visiting: false, t: 0, menuT: 0, cb: null,
@@ -22,6 +25,7 @@ const Intro = {
   // opening story — flies the REAL map while eggs hatch and the pack runs
   story: false, storyT: 0, storyCam: null, storyMarines: [], storyFx: [], fxT: 0,
   storyFire: null, smokeT: 0, _boomed: false, storyCity: [], storyCivs: [], killT: 0,
+  storyBlood: [],
 
   civMesh() {                                    // tiny panicked citizen
     const g = new THREE.Group();
@@ -32,6 +36,19 @@ const Intro = {
       new THREE.MeshStandardMaterial({ color: 0xd8a880, roughness: .9 }));
     h.position.y = .84; g.add(h);
     return g;
+  },
+
+  marineBlood(m) {                               // pool under the corpse + welts on the armor
+    const p = new THREE.Mesh(_bloodGeo, _bloodMat);
+    p.position.set(m.position.x, .02 + Math.random() * .012, m.position.z);
+    p.rotation.x = -Math.PI / 2; p.scale.setScalar(.9 + Math.random() * .5);
+    Enemies.scene.add(p); this.storyBlood.push(p);
+    for (let i = 0; i < 2; i++) {                  // red stains where the claws went in
+      const w = new THREE.Mesh(_bloodBlobGeo, _bloodMat);
+      w.position.set((Math.random() - .5) * .34, .85 + Math.random() * .4, .17);
+      w.scale.setScalar(.6 + Math.random() * .9);
+      m.add(w);                                    // rides along — visible once he's on his back
+    }
   },
 
   fatigueMesh(accent) {                          // trooper out of armor — fatigues + squad-color cap
@@ -358,6 +375,7 @@ const Intro = {
 
     // THE WALL — two deep ranks across the whole approach, marauders interleaved
     this.storyMarines = [];
+    this.storyBlood = [];                          // gore decals, cleared in stop()
     let wRank = 0;
     for (const [rz, step, xoff] of [[9.4, 2.7, 0], [11.9, 2.7, 1.35]]) {
       wRank++;
@@ -470,9 +488,10 @@ const Intro = {
       [0.0, -70, 34, -205,   -70, 2, -258],
       [4.0, -72, 11, -228,   -70, 1, -260],
       [8.0, -56,  7, -150,   -20, 2, -80],
-      [11.5, -20,  8, -26,     0, 2, 12],    // swoop in behind the wall
-      [13.6,   0,  3.2, 16,    0, 1.5, -20], // low over the firing line — into the swarm
-      [16.0,  14,  4,  8,      0, 1.5, 11],  // the line buckles
+      [10.4, -26,  5, -30,    0, 2, 10],     // swoop in behind the wall
+      [12.2,   5, 1.5, 15.5, -3, 1.1, 9.8],  // GROUND LEVEL — the swarm hits the line
+      [14.2,  -4, 1.6, 14.5,  6, 1.0, 9.6],  // slide along as the wall buckles
+      [16.2,  13, 4.5,   9,   0, 2.5, 22],   // pull up as the ultras stride in
       [18.4, -18,  6,  2,      0, 3, 30],    // ultralisks hit the blocks
       [21.0,  10, 16, 58,      0, 3, 24],    // pull back over the burning city
       [23.8,  18, 20, 66,      0, 3, 24],
@@ -524,31 +543,48 @@ const Intro = {
         }
         e.storyMar = best;
       }
-      if (t > 9.0 && e.storyMar && !e.storyMar.userData.fell) {
-        e.storyTgt.x = e.storyMar.position.x; e.storyTgt.z = e.storyMar.position.z;
-        if (Math.hypot(mp.x - e.storyTgt.x, mp.z - e.storyTgt.z) < 1.5) {
-          e.storyMar.userData.fell = true;               // dragged down
-          try {
-            bloodBurst(mp.clone().setY(.6), 6);
-            Audio2.hitAt(9); Audio2.screech(12);         // scream cut short
-          } catch (e) {}
+      if (e.storyLeap) {                                 // mid-pounce — ride the arc onto him
+        const L = e.storyLeap, mr = L.mr.position;
+        L.t += dt / .38;
+        const k = Math.min(1, L.t);
+        mp.x = _lz(L.fx, mr.x, k); mp.z = _lz(L.fz, mr.z, k);
+        mp.y = Math.sin(Math.PI * k) * 1.6;              // apex of the leap
+        e.mesh.rotation.x = -Math.sin(Math.PI * k) * .55;
+        if (L.t >= 1) {
+          e.storyLeap = null; e.mesh.rotation.x = 0; mp.y = 0;
+          if (!L.mr.userData.fell) {                     // lands ON the marine — drags him down
+            L.mr.userData.fell = true;
+            try {
+              bloodBurst(mr.clone().setY(.7), 8);
+              this.marineBlood(L.mr);
+              Audio2.hitAt(9); Audio2.screech(12);       // scream cut short
+            } catch (er) {}
+          }
           e.storyMar = null;
         }
-      } else if (t > 10.5) {                             // wall's gone — swarm the blocks
-        const B = this.storyCity[e.storyBld];
-        if (B && !B.fell) { e.storyTgt.x = B.bx + e.storyJx * 3; e.storyTgt.z = B.bz + (Math.random() - .5) * 3; }
-        else { e.storyTgt.x = e.storyJx * 80; e.storyTgt.z = 20 + Math.random() * 36; }
-      }
-      const dx = e.storyTgt.x - mp.x, dz = e.storyTgt.z - mp.z, d = Math.hypot(dx, dz);
-      if (d > 1.8) {
-        mp.x += dx / d * e.storySpd * dt;
-        mp.z += dz / d * e.storySpd * dt;
-        e.mesh.rotation.y = Math.atan2(dx, dz);
-        mp.y = Math.abs(Math.sin(t * 14 + e.storyPh)) * .12;   // grounded scuttle
-      } else {                                           // scrabble at the walls — feet stay down
-        mp.y += (.18 - mp.y) * Math.min(1, dt * 4);
-        mp.x += Math.sin(t * 3 + e.storyPh) * dt * .5;
-        mp.z += Math.cos(t * 2.4 + e.storyPh) * dt * .4;
+      } else {
+        if (t > 9.0 && e.storyMar && !e.storyMar.userData.fell) {
+          e.storyTgt.x = e.storyMar.position.x; e.storyTgt.z = e.storyMar.position.z;
+          if (Math.hypot(mp.x - e.storyTgt.x, mp.z - e.storyTgt.z) < 4.4) {
+            e.storyLeap = { t: 0, fx: mp.x, fz: mp.z, mr: e.storyMar };   // POUNCE
+            try { Audio2.screech(6 + Math.random() * 8); } catch (er) {}
+          }
+        } else if (t > 10.5) {                           // wall's gone — swarm the blocks
+          const B = this.storyCity[e.storyBld];
+          if (B && !B.fell) { e.storyTgt.x = B.bx + e.storyJx * 3; e.storyTgt.z = B.bz + (Math.random() - .5) * 3; }
+          else { e.storyTgt.x = e.storyJx * 80; e.storyTgt.z = 20 + Math.random() * 36; }
+        }
+        const dx = e.storyTgt.x - mp.x, dz = e.storyTgt.z - mp.z, d = Math.hypot(dx, dz);
+        if (d > 1.8) {
+          mp.x += dx / d * e.storySpd * dt;
+          mp.z += dz / d * e.storySpd * dt;
+          e.mesh.rotation.y = Math.atan2(dx, dz);
+          mp.y = Math.abs(Math.sin(t * 14 + e.storyPh)) * .12;   // grounded scuttle
+        } else {                                         // scrabble at the walls — feet stay down
+          mp.y += (.18 - mp.y) * Math.min(1, dt * 4);
+          mp.x += Math.sin(t * 3 + e.storyPh) * dt * .5;
+          mp.z += Math.cos(t * 2.4 + e.storyPh) * dt * .4;
+        }
       }
       const legs = e.mesh.userData.legs || [];
       for (let li = 0; li < legs.length; li++)
@@ -596,13 +632,13 @@ const Intro = {
       const m = this.storyMarines[mi], ud = m.userData;
       if (ud.fell) {
         if (ud.fellDone) continue;                       // settled corpse — hands off
-        m.rotation.x += (-1.45 - m.rotation.x) * Math.min(1, dt * 4);
+        m.rotation.x += (1.45 - m.rotation.x) * Math.min(1, dt * 4);   // onto his back
         if (ud.kx) {                                     // ultra punt — skid to a stop
           m.position.x += ud.kx * dt; m.position.z += ud.kz * dt;
           ud.kx *= Math.max(0, 1 - dt * 4); ud.kz *= Math.max(0, 1 - dt * 4);
         }
-        if (Math.abs(-1.45 - m.rotation.x) < .04 && Math.hypot(ud.kx || 0, ud.kz || 0) < .15) {
-          m.rotation.x = -1.45; ud.kx = ud.kz = 0; ud.fellDone = true;
+        if (Math.abs(1.45 - m.rotation.x) < .04 && Math.hypot(ud.kx || 0, ud.kz || 0) < .15) {
+          m.rotation.x = 1.45; ud.kx = ud.kz = 0; ud.fellDone = true;
         }
         continue;
       }
@@ -680,6 +716,7 @@ const Intro = {
             ud.kz = (mr.position.z - up.z) / cd * 9;
             try {
               bloodBurst(mr.position.clone().setY(.8), 7);
+              this.marineBlood(mr);
               Audio2.hitAt(10); Audio2.screech(10);
             } catch (e) {}
             if (++pair >= 2) break;
@@ -717,6 +754,7 @@ const Intro = {
           mr.userData.kx = ddx * k; mr.userData.kz = ddz * k;
           try {
             bloodBurst(mr.position.clone().setY(.7), 6);
+            this.marineBlood(mr);
             Audio2.hitAt(7);                             // flattened under a hoof
           } catch (e) {}
         }
@@ -935,7 +973,8 @@ const Intro = {
       this.hordeIm = null;
     }
     this.horde = [];
-    this.storyMarines = []; this.storyUltras = []; this.storyFx = [];
+    for (const p of this.storyBlood) Enemies.scene.remove(p);
+    this.storyMarines = []; this.storyUltras = []; this.storyFx = []; this.storyBlood = [];
     if (this.storyFire) { Enemies.scene.remove(this.storyFire); this.storyFire = null; }
     if (this.cityGlow) { Enemies.scene.remove(this.cityGlow); this.cityGlow = null; }
     for (const B of this.storyCity) Enemies.scene.remove(B.g);
