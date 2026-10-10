@@ -804,6 +804,12 @@ function updatePlayer(dt) {
 }
 
 /* ---------- loadout — marine rifleman vs marauder grenadier ---------- */
+/* squad paint — your suit sets the platoon's colors */
+function playerAccent() {
+  return Player.unit === 'marauder' ? 0xff8a3a
+       : Player.unit === 'medic' ? 0x5aff8a : 0x4ad0ff;
+}
+
 const UNITS = {
   marine:   { hp: 100, mag: 32, reserve: 320, rate: 1 / 9, dmg: 2,  hs: 34, label: 'C-14 GAUSS',         flash: 0.35 },
   marauder: { hp: 300, mag: 8,  reserve: 96,  rate: 0.53,  dmg: 80, hs: 80, label: 'PUNISHER GRENADES',  flash: 0.6  },

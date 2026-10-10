@@ -540,7 +540,7 @@ function spawnAllies() {
     mkAlly(i, Allies.names[i],
       '#' + Allies.accents[i].toString(16).padStart(6, '0'),
       isLead,
-      isLead ? buildMarauderMesh(Allies.accents[i]) : buildMarineMesh(Allies.accents[i]),
+      (isLead ? buildMarauderMesh : buildMarineMesh)(playerAccent()),
       sl,
       new THREE.Vector3(Player.pos.x + sl.x * cos + sl.z * sin, 0,
                         Player.pos.z - sl.x * sin + sl.z * cos));
@@ -561,7 +561,7 @@ function spawnReinforcements(n, at) {
     const slot = Allies.slots[(Allies.list.length + i) % Allies.slots.length];
     mkAlly(Allies.list.length + i, name,
       '#' + accent.toString(16).padStart(6, '0'), false,
-      buildMarineMesh(accent), slot,
+      buildMarineMesh(playerAccent()), slot,
       new THREE.Vector3(at.x + (Math.random() - .5) * 3.4, 0,
                         at.z + (Math.random() - .5) * 3.4));
   }

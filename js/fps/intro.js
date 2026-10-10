@@ -300,7 +300,7 @@ const Intro = {
       const bare = this.fatigueMesh(Allies.accents[i]);             // at ease — armor stays racked
       s.add(bare);
       const [sx, sz] = SLOT_POS[i];
-      const rk = mkRack(isLead ? 'marauder' : 'marine', Allies.accents[i]);
+      const rk = mkRack(isLead ? 'marauder' : 'marine', playerAccent());
       rk.position.set(sx + (sx < 0 ? -2.0 : 2.0), 0, sz);           // their rig behind them
       rk.rotation.y = sx < 0 ? Math.PI / 2 : -Math.PI / 2;          // suit faces the aisle
       s.add(rk);
@@ -337,7 +337,7 @@ const Intro = {
   suitUpSquad(t) {
     for (const q of this.squadList) {
       if (q.suited || t < q.suitT) continue;
-      const arm = (q.isLead ? buildMarauderMesh : buildMarineMesh)(q.accent);
+      const arm = (q.isLead ? buildMarauderMesh : buildMarineMesh)(playerAccent());
       for (const k of ['barBg', 'barFg', 'star'])
         if (arm.userData[k]) arm.userData[k].visible = false;
       arm.position.copy(q.m.position); arm.rotation.copy(q.m.rotation);
@@ -452,7 +452,7 @@ const Intro = {
   suitFor(unit) {
     if (this.suitBody && this.suitUnit === unit) return;
     if (this.suitBody) this.suit.remove(this.suitBody);
-    const accent = unit === 'marauder' ? 0xff8a3a : unit === 'medic' ? 0x5aff8a : 0x4ad0ff;
+    const accent = playerAccent();
     const body = unit === 'marauder' ? buildMarauderMesh(accent) : buildMarineMesh(accent);
     const gun = body.userData.gun || body.children.find(c => c.isGroup);
     if (gun) body.remove(gun);                                    // weapon stays on the rack
@@ -1100,6 +1100,21 @@ const Intro = {
     else this.cam.aspect = innerWidth / innerHeight, this.cam.updateProjectionMatrix();
     this.visiting = true; this.menu = false;
     this.suitFor(Game.unit || 'marine');                 // YOUR rig is the one on the rack
+    if (this._squadPaint !== playerAccent()) {          // new colors — re-hang every rig
+      this._squadPaint = playerAccent();
+      for (const q of this.squadList || []) {
+        if (!q.rack || !q.rack.userData.body) continue;
+        const old = q.rack.userData.body;
+        const body = (q.isLead ? buildMarauderMesh : buildMarineMesh)(this._squadPaint);
+        const gun = body.userData.gun || body.children.find(c => c.isGroup);
+        if (gun) body.remove(gun);
+        if (body.userData.barBg)
+          body.userData.barBg.visible = body.userData.barFg.visible = false;
+        body.visible = old.visible;                    // mid-cine rigs stay off the hooks
+        q.rack.remove(old); q.rack.add(body);
+        q.rack.userData.body = body;
+      }
+    }
     this.billetSquad();                                            // squad stands to
     this.vYaw = this.vYawT = Math.PI;                    // start facing the suit rack
     this.vPitch = this.vPitchT = 0;
