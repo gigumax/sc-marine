@@ -223,13 +223,17 @@ const Intro = {
     this.baseLight = new THREE.PointLight(0x6aa8ff, .8, 20);
     this.baseLight.position.set(0, 3, -14); s.add(this.baseLight);
 
-    /* --- the CMC suit on its rack — the real battle mesh, front (+z) out --- */
+    /* --- the CMC suit on its rack — the real battle mesh, front out --- */
+    /* racked at the head of the right file with everyone else's — faces the aisle */
     const suit = this.suit = new THREE.Group(); s.add(suit);
+    suit.position.set(5.4, 0, -5.38);
+    suit.rotation.y = -Math.PI / 2;                                 // front to the aisle, like the rest
     B(.5, .08, .5, joint, 0, .04, -.2, suit);                       // rack base
     B(.1, 1.9, .1, joint, 0, .95, -.48, suit);                      // rack post
     B(.14, .3, .14, joint, 0, 1.75, -.42, suit);                    // head mount
     B(.1, .2, .3, joint, -.34, 1.5, -.3, suit);                     // shoulder clamps
     B(.1, .2, .3, joint, .34, 1.5, -.3, suit);
+    B(.1, .04, .1, glowC, 0, .04, .1, suit);                        // rack status light
 
     // cavity + core + chest panels ride on whatever suit body is racked
     this.cavity = B(.5, .66, .05, dark, 0, 1.18, .2);
@@ -365,8 +369,8 @@ const Intro = {
               s.wT = 2.5 + Math.random() * 6;
               s.wx = -4.6 + Math.random() * 9.2;
               s.wz = -10.4 + Math.random() * 20.8;
-              if (Math.abs(s.wx) < 1.3 && Math.abs(s.wz + .2) < 1.8)
-                s.wx = (s.wx < 0 ? -1 : 1) * (1.5 + Math.random()); // keep off your rig's pad
+              if (s.wx > 4.2 && s.wz < -4.6)
+                s.wx = 3.4 + Math.random();                         // keep off your rig's rack
             }
           }
         }
@@ -1200,10 +1204,10 @@ const Intro = {
       if (p.z > 11.2) p.x = Math.max(-0.68, Math.min(0.68, p.x));
       else if (p.z >= -11.2) p.x = Math.max(-10.3, Math.min(10.3, p.x));
       else p.x = Math.max(-9.3, Math.min(9.3, p.x));         // apron
-      const sdx = p.x, sdz = p.z + 0.2, sd = sdx * sdx + sdz * sdz; // don't clip the rig
-      if (sd < 0.30 && p.z >= -11.2 && p.z <= 11.2) {
+      const sdx = p.x - 5.4, sdz = p.z + 5.38, sd = sdx * sdx + sdz * sdz; // don't clip your rack
+      if (sd < 0.30) {
         const d = Math.sqrt(sd) || .01, k = 0.55 / d;
-        p.x = sdx * k; p.z = -0.2 + sdz * k;
+        p.x = 5.4 + sdx * k; p.z = -5.38 + sdz * k;
       }
       const bob = (mv || st) ? Math.sin(this.bobT * 2) * .03 : Math.sin(t * .9) * .02;
       this.cam.position.set(p.x, 1.62 + p.y + bob, p.z);
@@ -1273,18 +1277,18 @@ const Intro = {
       }
     });
 
-    if (t < 2.6) {                                   // — walk up to the suit —
+    if (t < 2.6) {                                   // — cross the aisle to your rack —
       const k = _ez(t / 2.6);
-      cam.position.set(0, _lz(1.55, 1.42, k), _lz(4.6, 1.15, k));
-      this.look.set(0, 1.25, .25);
+      cam.position.set(_lz(0, 4.6, k), _lz(1.55, 1.42, k), _lz(4.6, -4.85, k));
+      this.look.set(5.2, 1.25, -5.35);                            // chest on the rack, facing out
       fade.style.opacity = 1 - Math.min(1, t / .8);  // fade in from black
       // chest irises open as you arrive — hydraulics crack the four corner plates
       if (t - dt < 1.3 && t >= 1.3) Audio2.hydraulic();
       this.setChest(_ez(Math.min(1, Math.max(0, (t - 1.3) / .9))));
-    } else if (t < 4.0) {                            // — step in, turn to the door —
+    } else if (t < 4.0) {                            // — step in, pivot to the door —
       const k = _ez((t - 2.6) / 1.4);
-      cam.position.set(0, _lz(1.42, 1.3, k), _lz(1.15, .02, k));
-      this.look.set(0, _lz(1.25, 1.5, k), _lz(.25, 14, k));
+      cam.position.set(_lz(4.6, 5.32, k), _lz(1.42, 1.3, k), _lz(-4.85, -5.36, k));
+      this.look.set(_lz(5.2, 0, k), _lz(1.25, 1.5, k), _lz(-5.35, 14, k));
     } else if (t < 4.7) {                            // — chest seals shut —
       const k = _ez((t - 4.0) / .7);
       this.setChest(1 - k);
@@ -1293,7 +1297,7 @@ const Intro = {
       const v = document.getElementById('intro-visor');
       v.style.opacity = Math.min(1, (t - 4.0) / .5);
     } else if (t < 8.6) {                            // — inside: suit boot —
-      cam.position.set(0, 1.3 + Math.sin(t * 1.4) * .006, .02);    // idle breath sway
+      cam.position.set(5.3, 1.3 + Math.sin(t * 1.4) * .006, -5.34); // idle breath sway on the rack
       if (t - dt < 4.7) Audio2.tone(120, .3, 'sine', .1, 60);      // suit hum on
       if (t - dt < 5.0 && t >= 5.0) Audio2.say('Suit sealed. All systems nominal.', { rate: .95 });
       // helmet sweep — watch each file slam their armor on, then square on the door
@@ -1321,9 +1325,9 @@ const Intro = {
       this.doorGlow.material.opacity = _lz(.06, 1, k);
       this.outLight.intensity = _lz(0, 2.2, k);
       if (t - dt < 8.6) Audio2.noise(.8, .2, 300, .7);             // servo rumble
-    } else if (t < 12.6) {                           // — walk out the door —
+    } else if (t < 12.6) {                           // — out of the rack, down the aisle —
       const k = _ez((t - 10.2) / 2.4);
-      cam.position.set(0, 1.3, _lz(.02, 14.8, k));
+      cam.position.set(_lz(5.3, 0, k), 1.3, _lz(-5.35, 14.8, k));
       this.look.set(0, 1.5, 18);
       if (t > 11.4) {                                // white-out into the drop
         fade.style.background = '#fff';
