@@ -26,6 +26,9 @@ html,body { width:100%; height:100%; background:#000; overflow:hidden;
 #crosshair.arm-r.aim { transform:translateX(6vw); }
 #crosshair.arm-l i, #crosshair.arm-r i { background:rgba(255,170,90,.95); box-shadow:0 0 5px #f80; }
 #crosshair.arm-l #ch-dot, #crosshair.arm-r #ch-dot { background:#ffb060; }
+/* stimmed — reticle runs hot */
+#crosshair.stim i { background:rgba(255,120,60,.95); box-shadow:0 0 6px #f50; }
+#crosshair.stim #ch-dot { background:#ff8a50; box-shadow:0 0 8px #f50; }
 
 /* hitmarker */
 #hitmarker { position:absolute; left:50%; top:50%; opacity:0; transition:opacity .12s; }

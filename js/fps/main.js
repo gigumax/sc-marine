@@ -179,6 +179,7 @@ function pollPad(dt) {
   const once = i => { const n = btn(i), w = Pad.prev[i]; Pad.prev[i] = n; return n && !w; };
 
   if (once(2)) startReload();                        // X
+  if (once(3)) stimPack();                           // Y
   if (once(0)) tryJump();                            // A
   if (once(9)) {                                     // Start
     if (Player.dead || Game.won) restart();

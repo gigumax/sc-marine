@@ -465,6 +465,7 @@ const Intro = {
     }
     if (World.base) {                                    // wreck state + fire light
       World.base.g.rotation.set(0, 0, 0); World.base.g.position.y = .12;
+      World.base.g.visible = false;                      // not in this skyline — skyline's skyscrapers
       this.storyFire = new THREE.PointLight(0xff6a22, 0, 14);
       this.storyFire.position.set(0, 1.6, 18);
       Enemies.scene.add(this.storyFire);
@@ -844,11 +845,6 @@ const Intro = {
       if (t > 13 && !this._boomed) {
         this._boomed = true;
         try { Audio2.noise(1.4, .5, 90, .6); } catch (e) {}
-      }
-      if (World.base) {
-        const g = World.base.g, k = Math.min(1, (t - 12.8) / 2.6);
-        g.rotation.z = _ez(k) * .34;
-        g.position.y = .12 - _ez(k) * .7;
       }
       this.smokeT -= dt;
       if (this.smokeT <= 0) {

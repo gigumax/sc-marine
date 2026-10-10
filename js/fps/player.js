@@ -19,6 +19,7 @@ const Player = {
   dead: false,
   kills: 0,                          // your zerg kills → 50 earns command
   regenT: 0,
+  stimT: 0, stimCd: 0,                // stimpack burn + injector cooldown
   bobT: 0, stepT: 0,
   recoil: 0,
   shake: 0,
@@ -183,6 +184,7 @@ function initPlayer(camera) {
   });
   document.addEventListener('keydown', e => {
     if (e.key.toLowerCase() === 'r') startReload();
+    if (e.key.toLowerCase() === 't') stimPack();
     if (e.key === ' ') { e.preventDefault(); tryJump(); }
   });
   document.addEventListener('contextmenu', e => e.preventDefault());
@@ -206,13 +208,26 @@ function startReload() {
   // bottomless mags — reload is a no-op now
 }
 
+/* ---------- stimpack — burn vitals for speed + fire-rate (SC canon: can't kill) ---------- */
+function stimPack() {
+  if (!Game.running || Player.dead) return;
+  if (Player.stimCd > 0) { Audio2.dry(); UI.toast('STIM RECHARGING'); return; }
+  const cost = Math.min(15, Player.hp - 8);          // needles stop short of lethal
+  if (cost <= 0) { Audio2.dry(); UI.toast('TOO WEAK FOR STIM'); return; }
+  Player.hp -= cost;
+  Player.stimT = 7; Player.stimCd = 20;              // 7s hot, 20s till the next dose
+  Audio2.stim();
+  UI.toast('STIMPACK — SYSTEMS HOT');
+}
+
 function movePlayer(dt, moveX, moveZ, sprint) {
   // input dir in local space → world
   const sin = Math.sin(Player.yaw), cos = Math.cos(Player.yaw);
   let dx = moveX * cos + moveZ * sin;
   let dz = -moveX * sin + moveZ * cos;
   const len = Math.hypot(dx, dz);
-  const speed = (sprint ? 9.2 : 6.0) * (Player.ads ? 0.55 : 1);   // only scoped-in slows you
+  const speed = (sprint ? 9.2 : 6.0) * (Player.ads ? 0.55 : 1)
+    * (Player.stimT > 0 ? 1.45 : 1);                  // stim legs — scoped-in still slows
   if (len > 0) { dx /= len; dz /= len; }
 
   const res = worldCollide(
@@ -252,7 +267,7 @@ function fireWeapon() {
   if (Player.unit === 'medic' && Player.energy <= 0) {
     Player.fireT = 0.3; Audio2.dry(); return;   // capacitor dead — grab a blue cube
   }
-  Player.fireT = Player.fireRate;             // 9 rps marine / 0.53s marauder — no reload
+  Player.fireT = Player.fireRate * (Player.stimT > 0 ? 0.6 : 1);  // stim shreds
   Player.recoil = Math.min(1, Player.recoil + 0.55);
   Player.shake = Math.min(1, Player.shake + (Player.unit === 'marauder' ? 0.7 : 0.3));
   Player.pitch += Player.unit === 'marauder'
@@ -663,6 +678,8 @@ Player.heal = function (n) {
 function updatePlayer(dt) {
   // fire timer — no reload bookkeeping anymore
   if (Player.fireT > 0) Player.fireT -= dt;
+  if (Player.stimT > 0) Player.stimT -= dt;          // burn down
+  if (Player.stimCd > 0) Player.stimCd -= dt;        // injector refills
   if (Player.firing && Player.fireT <= 0 && !Player.dead) fireWeapon();
 
   // recoil & shake decay
@@ -694,6 +711,7 @@ function updatePlayer(dt) {
   }
   const chEl = document.getElementById('crosshair');
   chEl.classList.toggle('aim', Player.ads);
+  chEl.classList.toggle('stim', Player.stimT > 0);   // amber-hot reticle while lit
   // marauder: reticle sits over whichever tube fires next
   const mar = Player.unit === 'marauder';
   chEl.classList.toggle('arm-l', mar && Player.armSide < 0);
@@ -757,6 +775,7 @@ function setUnit(unit) {
   Player.fireRate = u.rate; Player.dmg = u.dmg; Player.hsDmg = u.hs;
   Player.healPwr = u.heal || 0;
   Player.energyMax = u.nrg || 0; Player.energy = Player.energyMax;
+  Player.stimT = 0; Player.stimCd = 0;               // fresh dose on redeploy
   if (Player.muzzle) {                          // beam color follows the kit
     Player.muzzle.material.color.setHex(Player.unit === 'medic' ? 0x66ffa0 : 0xffd080);
     Player.muzzleLight.color.setHex(Player.unit === 'medic' ? 0x4aff80 : 0xffb060);
