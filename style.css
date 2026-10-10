@@ -256,7 +256,15 @@ button.ghost:hover { color:#cfe4ff; border-color:#5a8aba; }
   font-size:15px; letter-spacing:2px; line-height:2.1; text-align:left;
   color:#7dffa0; text-shadow:0 0 10px rgba(80,255,140,.45); font-family:'Consolas',monospace; }
 .st-line { opacity:0; transition:opacity .35s; }
-#story-skip { position:fixed; right:5%; bottom:3.4vh; z-index:22; font-size:11px;
+#story-rating { position:fixed; left:50%; top:40%; transform:translate(-50%,-50%);
+  z-index:27; text-align:center; pointer-events:none; opacity:0;
+  border:2px solid #a02424; border-radius:3px; background:rgba(12,5,5,.9);
+  padding:14px 30px 12px; }
+#story-rating b { display:block; font-size:17px; letter-spacing:6px; color:#ff6a5a;
+  text-shadow:0 0 14px rgba(255,60,40,.6); }
+#story-rating span { display:block; font-size:10px; letter-spacing:2px;
+  color:#d8a0a0; margin-top:7px; }
+#story-skip { position:fixed; right:20px; bottom:16px; z-index:26; font-size:11px;
   letter-spacing:3px; color:#6a8ab8; animation:lobbyPulse 1.6s infinite; }
 #story-title { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
   z-index:23; font-size:min(9vw,74px); font-weight:800; letter-spacing:.22em; color:#ffb347;

@@ -495,6 +495,8 @@ const Intro = {
     document.getElementById('startscreen').classList.add('hidden');
     document.getElementById('storyscreen').classList.remove('hidden');
     document.getElementById('story-text').style.display = 'none';   // no words
+    const rts = document.getElementById('story-rating');            // content warning card
+    if (rts) { rts.classList.remove('hidden'); rts.style.opacity = 0; }
     document.getElementById('story-skip').textContent = 'TAP ANYWHERE TO SKIP \u25B8';
     const f = document.getElementById('intro-fade');
     f.style.background = '#000'; f.style.opacity = 1;
@@ -681,6 +683,9 @@ const Intro = {
     const ttl = document.getElementById('story-title');  // DEFEND MANKIND on the black
     if (ttl) ttl.style.opacity =
       Math.max(0, Math.min(1, (t - 22.1) / .9)) * (t > 23.4 ? Math.max(0, 1 - (t - 23.4) / .6) : 1);
+    const rtg = document.getElementById('story-rating');           // warning card first
+    if (rtg) rtg.style.opacity =
+      Math.min(1, t / .5) * (t > 2.8 ? Math.max(0, 1 - (t - 2.8) / .6) : 1);
 
     // keyframed aerial — nest, charge, THE WALL, breakthrough, ultralisk rampage
     const KS = [
@@ -1184,6 +1189,8 @@ const Intro = {
     document.getElementById('story-text').style.display = '';
     document.getElementById('story-skip').textContent = 'CLICK OR PRESS ANY KEY TO DEPLOY \u25B8';
     document.querySelectorAll('.st-line').forEach(l => l.style.opacity = 0);
+    const rtp = document.getElementById('story-rating');           // same warning up front
+    if (rtp) { rtp.classList.remove('hidden'); rtp.style.opacity = 0; }
     document.getElementById('intro-visor').style.opacity = 0;
     const f = document.getElementById('intro-fade');
     f.style.background = '#000'; f.style.opacity = 1;
@@ -1248,6 +1255,8 @@ const Intro = {
     document.exitPointerLock && document.exitPointerLock();
     document.getElementById('storyscreen').classList.add('hidden');
     document.getElementById('intro-visor').style.opacity = 0;
+    const rtx = document.getElementById('story-rating');
+    if (rtx) { rtx.classList.add('hidden'); rtx.style.opacity = 0; }
     const f = document.getElementById('intro-fade');
     f.style.opacity = 0; f.style.background = '#fff';
     const cb = this.cb; this.cb = null;
@@ -1360,6 +1369,9 @@ const Intro = {
     if (!this.playing) return;
     this.t += dt;
     const t = this.t, cam = this.cam, fade = document.getElementById('intro-fade');
+    const rt = document.getElementById('story-rating');            // content warning, ~3s
+    if (rt) rt.style.opacity =
+      Math.min(1, t / .5) * (t > 2.8 ? Math.max(0, 1 - (t - 2.8) / .6) : 1);
 
     // boot-line reveal schedule (suit OS posting during the 5s seal)
     const LINES = [5.1, 5.9, 6.7, 7.5];
