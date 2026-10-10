@@ -266,6 +266,7 @@ const Intro = {
       if (body.userData.barBg)
         body.userData.barBg.visible = body.userData.barFg.visible = false;
       rk.add(body);
+      rk.userData.body = body;                        // emptied when its owner steps out
       return rk;
     };
     const SLOT_POS = [
@@ -285,9 +286,11 @@ const Intro = {
       this.squadList.push({
         m: bare, bare, suited: null,                                // 'suited' swaps in on deploy
         isLead, accent: Allies.accents[i], name: Allies.names[i],
-        suitT: go - 0.9,                                            // armor locks right before step-off
-        x: sx, z: sz,
+        x: sx, z: sz, rack: rk,
         ry: sx < 0 ? Math.PI / 2 : -Math.PI / 2,                    // face the aisle
+        // armor lands the moment the helmet sweep passes his billet — front file first
+        suitT: sx < 0 ? 5.7 + (4.6 - sz) / 9.2 * 1.1
+                      : 7.35 + (5.35 - sz) / 9.2 * .95,
         ph: Math.random() * 7, wT: Math.random() * 6,               // stagger the first amble
         lane: sx < 0 ? -0.42 : 0.42,                                // file out two abreast
         go,
@@ -303,6 +306,8 @@ const Intro = {
       q.m.position.set(q.x, 0, q.z);
       q.m.rotation.set(0, q.ry, 0);
       q.m.visible = true;
+      q.m.scale.setScalar(1);
+      if (q.rack) q.rack.userData.body.visible = true;              // rig back on its hooks
     }
   },
 
@@ -315,8 +320,10 @@ const Intro = {
         if (arm.userData[k]) arm.userData[k].visible = false;
       arm.position.copy(q.m.position); arm.rotation.copy(q.m.rotation);
       q.bare.visible = false;
+      arm.scale.setScalar(1.12);                                    // slam-on pop
       this.scene.add(arm);
       q.m = q.suited = arm;
+      if (q.rack) q.rack.userData.body.visible = false;             // he took HIS rig
       try { Audio2.noise(.12, .07, 1000, .9); } catch (e) {}        // servo snick
     }
   },
@@ -367,6 +374,7 @@ const Intro = {
         m.position.y = Math.sin(t * 1.1 + s.ph) * .012;             // idle breath
         m.rotation.y = s.ry + Math.sin(t * .45 + s.ph) * .05;
       }
+      if (m.scale.x > 1) m.scale.setScalar(Math.max(1, m.scale.x - dt * 1.4)); // slam-on settle
     }
   },
 
@@ -1288,14 +1296,25 @@ const Intro = {
       cam.position.set(0, 1.3 + Math.sin(t * 1.4) * .006, .02);    // idle breath sway
       if (t - dt < 4.7) Audio2.tone(120, .3, 'sine', .1, 60);      // suit hum on
       if (t - dt < 5.0 && t >= 5.0) Audio2.say('Suit sealed. All systems nominal.', { rate: .95 });
-      // glance back at the pad — your ride waits — then square on the door
-      let lz = 14;
-      if (t >= 5.6 && t < 6.3) lz = _lz(14, -18, _ez((t - 5.6) / .7));
-      else if (t >= 6.3 && t < 7.7) lz = -18;
-      else if (t >= 7.7) lz = _lz(-18, 14, _ez(Math.min(1, (t - 7.7) / .6)));
-      this.look.set(0, 1.5, lz);
-      if (t - dt < 6.4 && t >= 6.4)
-        Audio2.say('Command center holding on the pad.', { rate: .95 });
+      // helmet sweep — watch each file slam their armor on, then square on the door
+      let lx = 0, ly = 1.5, lz = 14;
+      if (t >= 5.3 && t < 6.95) {                        // — left file —
+        const turn = _ez(Math.min(1, (t - 5.3) / .45));
+        lx = _lz(0, -3.3, turn); ly = _lz(1.5, 1.25, turn);
+        lz = t < 5.75 ? _lz(14, 4.6, turn)
+                      : _lz(4.6, -4.4, _ez(Math.min(1, (t - 5.75) / 1.15)));
+      } else if (t >= 6.95 && t < 8.35) {                // — right file —
+        const turn = _ez(Math.min(1, (t - 6.95) / .45));
+        lx = _lz(-3.3, 3.3, turn); ly = 1.25;
+        lz = t < 7.4 ? _lz(-4.4, 5.2, turn)
+                     : _lz(5.2, -3.7, _ez(Math.min(1, (t - 7.4) / .9)));
+      } else if (t >= 8.35) {                            // — eyes front —
+        const k = _ez(Math.min(1, (t - 8.35) / .25));
+        lx = _lz(3.3, 0, k); lz = _lz(-3.7, 14, k); ly = _lz(1.25, 1.5, k);
+      }
+      this.look.set(lx, ly, lz);
+      if (t - dt < 5.3 && t >= 5.3)
+        Audio2.say('Squad sealing up — move out.', { rate: .95 });
     } else if (t < 10.2) {                           // — barracks door opens —
       const k = _ez((t - 8.6) / 1.6);
       this.door.position.y = _lz(1.35, 4.05, k);

@@ -379,7 +379,8 @@ function spawnEnemy(type, pos) {
   const e = {
     mesh, hunter, ultra,
     hp: ultra ? 1000 : hunter ? 240 : 68,
-    speed: (ultra ? 4.2 : hunter ? 4.2 : 11.2) * (0.9 + Math.random() * 0.25),
+    speed: (ultra ? 2.4 : hunter ? 4.2 : 11.2) * (0.9 + Math.random() * 0.25),
+    spdCap: ultra ? 3.3 : hunter ? 5.6 : 13.5,         // enrage can't run away with it
     radius: ultra ? 1.9 : hunter ? 1.05 : 0.7,
     attackCd: 0,
     lungeT: 0,
@@ -583,8 +584,8 @@ function damageEnemy(e, dmg, headshot, byPlayer, creditId) {
   } else {
     Audio2.hit();
     UI.hitmarker(false);
-    // enrage briefly
-    e.speed *= 1.04;
+    // enrage briefly — capped so a high-HP ultra can't snowball into a sprint
+    e.speed = Math.min(e.speed * 1.04, e.spdCap);
   }
 }
 
