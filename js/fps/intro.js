@@ -22,6 +22,7 @@ const Intro = {
   vPos: new THREE.Vector3(0, 0, 2.4), bobT: 0, vY: 0, stepT: 0,
   _vMove: null, _vClick: null, _vRay: null, _vNdc: null,
   _suitHot: false, onSuitTap: null,
+  armory: null, armScreen: null, armNear: false, _greetHide: 0,
   // opening story — flies the REAL map while eggs hatch and the pack runs
   story: false, storyT: 0, storyCam: null, storyMarines: [], storyFx: [], fxT: 0,
   storyFire: null, smokeT: 0, _boomed: false, storyCity: [], storyCivs: [], killT: 0,
@@ -223,6 +224,23 @@ const Intro = {
     this.baseLight = new THREE.PointLight(0x6aa8ff, .8, 20);
     this.baseLight.position.set(0, 3, -14); s.add(this.baseLight);
 
+    /* --- armory console — east wall by the door; step up to tune armor + gun --- */
+    const arm = this.armory = new THREE.Group();
+    B(1.8, .9, .7, joint, 0, .45, 0, arm);                    // workbench body
+    B(1.8, .07, .75, armor, 0, .93, 0, arm);                  // counter top
+    B(.16, .55, .16, dark, -.6, 1.25, -.1, arm);              // screen posts
+    B(.16, .55, .16, dark, .6, 1.25, -.1, arm);
+    const scr = B(1.5, .85, .05, glowC, 0, 1.62, -.05, arm);  // holo order board
+    scr.material = scr.material.clone();
+    scr.material.transparent = true; scr.material.opacity = .55;
+    this.armScreen = scr;
+    B(.7, .3, .4, dark, -.45, 1.1, .18, arm);                 // field forge box
+    B(.3, .12, .3, glowO, .5, 1.02, .15, arm);                // hot plate
+    const al = new THREE.PointLight(0x4ad0ff, .5, 7); al.position.set(0, 1.8, .8); arm.add(al);
+    arm.rotation.y = -Math.PI / 2;                            // face the aisle
+    arm.position.set(9.4, 0, 7.6);
+    s.add(arm);
+
     /* --- the CMC suit on its rack — the real battle mesh, front out --- */
     /* racked at the head of the right file with everyone else's — faces the aisle */
     const suit = this.suit = new THREE.Group(); s.add(suit);
@@ -346,7 +364,7 @@ const Intro = {
         const tx = s.askGoto ? this.vPos.x : (s.wx === undefined ? s.x : s.wx),
               tz = s.askGoto ? this.vPos.z : (s.wz === undefined ? s.z : s.wz);
         const dx = tx - m.position.x, dz = tz - m.position.z, d = Math.hypot(dx, dz);
-        if (d > (s.askGoto ? 1.6 : .28)) {
+        if (d > (s.askGoto ? 1.6 : .28) && !(s.greetT > 0)) {   // hailed — he holds up
           const sp = s.askGoto ? 1.6 : .85;
           m.position.x += dx / d * sp * dt;
           m.position.z += dz / d * sp * dt;
@@ -357,7 +375,8 @@ const Intro = {
           m.position.y = Math.abs(Math.sin(t * 8 + s.ph)) * .05;    // amble bounce
         } else {
           m.position.y = Math.sin(t * 1.1 + s.ph) * .012;           // idle breath
-          if (s.askGoto) {                                          // squared up on you
+          if (s.askGoto || s.greetT > 0) {                      // squared up on you
+            if (s.greetT > 0) s.greetT -= dt;
             let dy = Math.atan2(this.vPos.x - m.position.x, this.vPos.z - m.position.z) - m.rotation.y;
             while (dy > Math.PI) dy -= Math.PI * 2;
             while (dy < -Math.PI) dy += Math.PI * 2;
@@ -387,6 +406,46 @@ const Intro = {
     this.warAsk = null; this.warT = 22 + Math.random() * 16;        // next check-in
     const w = document.getElementById('war-ask');
     if (w) w.classList.add('hidden');
+  },
+
+  /* armory order board — wallet, marks, prices */
+  _armRefresh() {
+    const ap = document.getElementById('armory-panel');
+    if (!ap) return;
+    const a = Player.armorLvl >= 5 ? 'ARMOR MK5 — MAX'
+      : `ARMOR MK${Player.armorLvl} → ${Player.armorLvl + 1} · ⬡40  <i>[1]</i>`;
+    const g = Player.gunLvl >= 5 ? 'GUN MK5 — MAX'
+      : `GUN MK${Player.gunLvl} → ${Player.gunLvl + 1} · ⬡40  <i>[2]</i>`;
+    ap.innerHTML = `<b>ARMORY</b><em>⬡ ${Player.minerals}</em><u>${a}</u><u>${g}</u>`;
+    ap.classList.remove('hidden');
+  },
+
+  /* G — hail the deck; nearest marine knocks off and hails back */
+  _greet() {
+    if (this.warAsk) return;                                  // don't talk over the ask
+    const w = document.getElementById('war-ask');
+    let best = null, bd = 1e9;
+    for (const q of this.squadList) {
+      const d = Math.hypot(q.m.position.x - this.vPos.x, q.m.position.z - this.vPos.z);
+      if (d < bd) { bd = d; best = q; }
+    }
+    if (!best || bd > 7 || !w || !w.classList.contains('hidden')) return;
+    best.greetT = 3.2;                                        // he stops and squares on you
+    w.innerHTML = `<b style="color:#fff">YOU:</b> "Hello."`;
+    w.classList.remove('hidden');
+    try { Audio2.radio(); } catch (e) {}
+    const line = ['"LT."', '"Hey, LT."', '"Lieutenant."', '"Oorah, LT."',
+      '"Good to see you, sir."'][Math.floor(Math.random() * 5)];
+    const nm = best.name, col = '#' + best.accent.toString(16).padStart(6, '0');
+    setTimeout(() => {
+      if (!this.visiting || this.warAsk) return;
+      w.innerHTML = `<b style="color:${col}">${nm}:</b> ${line}`;
+      try { Audio2.say(line.replace(/"/g, '')); } catch (e) {}
+    }, 800);
+    clearTimeout(this._greetHide);
+    this._greetHide = setTimeout(() => {
+      if (this.visiting && !this.warAsk) w.classList.add('hidden');
+    }, 3400);
   },
 
   /* swap the racked rig to the class the player picked */
@@ -1045,10 +1104,17 @@ const Intro = {
     if (this.warAsk) { this.warAsk.askGoto = false; this.warAsk = null; }
     if (this._vKey) document.removeEventListener('keydown', this._vKey);
     this._vKey = e => {
-      if (!this.warAsk || !this.warAsk.askShown) return;
       const k = e.key.toLowerCase();
-      if (k === 'y') { this._warHide(); if (this.onSuitTap) this.onSuitTap(); }
-      else if (k === 'n') this._warHide();
+      if (this.warAsk && this.warAsk.askShown) {
+        if (k === 'y') { this._warHide(); if (this.onSuitTap) this.onSuitTap(); }
+        else if (k === 'n') this._warHide();
+        return;
+      }
+      if (k === 'g') { this._greet(); return; }               // hail the deck crew
+      if (this.armNear) {                                   // armory order board
+        if (k === '1' && buyArmor()) this._armRefresh();
+        else if (k === '2' && buyGun()) this._armRefresh();
+      }
     };
     document.addEventListener('keydown', this._vKey);
     if (!this._vRay) this._vRay = new THREE.Raycaster();
@@ -1069,12 +1135,20 @@ const Intro = {
     document.getElementById('intro-fade').style.opacity = 0;
     const bh = document.getElementById('barracks-hint');
     if (bh) bh.classList.add('hidden');
+    const bm = document.getElementById('bar-min');      // shard wallet rides along
+    if (bm) bm.classList.remove('hidden');
     Game.renderer.domElement.requestPointerLock();     // mouse locks in like the fight
   },
 
   leave() {
     this.visiting = false;
     this._warHide();
+    this.armNear = false;
+    const ap = document.getElementById('armory-panel');
+    if (ap) ap.classList.add('hidden');
+    const bmx = document.getElementById('bar-min');
+    if (bmx) bmx.classList.add('hidden');
+    clearTimeout(this._greetHide);
     if (this._vKey) { document.removeEventListener('keydown', this._vKey); this._vKey = null; }
     if (this._vMove) { document.removeEventListener('mousemove', this._vMove); this._vMove = null; }
     if (this._vClick) document.removeEventListener('mousedown', this._vClick);
@@ -1163,6 +1237,11 @@ const Intro = {
     if (gsk) gsk.style.cssText = '';                     // drops gate's centered styles too
     if (this._vMove) document.removeEventListener('mousemove', this._vMove);
     if (this._vClick) document.removeEventListener('mousedown', this._vClick);
+    if (this._vKey) { document.removeEventListener('keydown', this._vKey); this._vKey = null; }
+    this.armNear = false;
+    const apn = document.getElementById('armory-panel');
+    if (apn) apn.classList.add('hidden');
+    clearTimeout(this._greetHide);
     document.body.style.cursor = '';
     const bh = document.getElementById('barracks-hint');
     if (bh) bh.classList.add('hidden');
@@ -1205,9 +1284,14 @@ const Intro = {
       else if (p.z >= -11.2) p.x = Math.max(-10.3, Math.min(10.3, p.x));
       else p.x = Math.max(-9.3, Math.min(9.3, p.x));         // apron
       const sdx = p.x - 5.4, sdz = p.z + 5.38, sd = sdx * sdx + sdz * sdz; // don't clip your rack
-      if (sd < 0.30) {
+      if (sd < 0.30 && p.z >= -5.2 && p.z <= 5.2) {
         const d = Math.sqrt(sd) || .01, k = 0.55 / d;
         p.x = 5.4 + sdx * k; p.z = -5.38 + sdz * k;
+      }
+      const adx = p.x - 9.4, adz = p.z - 7.6, ad2 = adx * adx + adz * adz; // armory keep-out
+      if (ad2 < 0.95 && p.z >= -11.2 && p.z <= 11.2) {
+        const ad = Math.sqrt(ad2) || .01, ak = 0.97 / ad;
+        p.x = 9.4 + adx * ak; p.z = 7.6 + adz * ak;
       }
       const bob = (mv || st) ? Math.sin(this.bobT * 2) * .03 : Math.sin(t * .9) * .02;
       this.cam.position.set(p.x, 1.62 + p.y + bob, p.z);
@@ -1226,6 +1310,16 @@ const Intro = {
       }
       if (this.core) this.core.material.emissiveIntensity =
         .3 + (this._suitHot ? 1.6 + Math.sin(t * 6) * .8 : Math.sin(t * 2) * .3 + .3);
+      // armory proximity — the order board lights when you step to the bench
+      const near = Math.hypot(p.x - 9.4, p.z - 7.6) < 2.6;
+      if (near !== this.armNear) {
+        this.armNear = near;
+        const ap = document.getElementById('armory-panel');
+        if (ap) { if (near) this._armRefresh(); else ap.classList.add('hidden'); }
+        if (this.armScreen) this.armScreen.material.opacity = near ? .95 : .55;
+      }
+      const bn = document.getElementById('bar-min-num');    // wallet ticks as you buy
+      if (bn && bn.textContent != Player.minerals) bn.textContent = Player.minerals;
       // a file lead walks over and asks — "ready for war?"
       if (!this.warAsk) {
         this.warT -= dt;

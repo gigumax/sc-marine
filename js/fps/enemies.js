@@ -747,10 +747,7 @@ const _ammoMat = new THREE.MeshStandardMaterial({ color: 0x2266aa, emissive: 0x2
 const _hpGeo = new THREE.BoxGeometry(0.32, 0.32, 0.32);
 const _hpMat = new THREE.MeshStandardMaterial({ color: 0x22aa55, emissive: 0x2ae05a, emissiveIntensity: 0.9 });
 
-function maybeDrop(pos) {
-  const r = Math.random();
-  if (r > 0.16) return;
-  const type = r < 0.10 ? 'ammo' : 'health';
+function dropPickup(pos, type) {
   const m = new THREE.Mesh(
     type === 'ammo' ? _ammoGeo : _hpGeo,
     type === 'ammo' ? _ammoMat : _hpMat);
@@ -759,6 +756,12 @@ function maybeDrop(pos) {
   const p = { m, type, t: 0 };
   if (Net.on) { p.pkId = Net.nextPk++; Net.pkById[p.pkId] = p; }
   Enemies.pickups.push(p);
+  return p;
+}
+function maybeDrop(pos) {
+  const r = Math.random();
+  if (r > 0.16) return;
+  dropPickup(pos, r < 0.10 ? 'ammo' : 'health');
 }
 function updatePickups(dt) {
   for (const p of Enemies.pickups) {

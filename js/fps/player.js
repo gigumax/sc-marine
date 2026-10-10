@@ -13,8 +13,9 @@ const Player = {
   energy: 100, energyMax: 100,                // medic capacitor — blue cubes refill it
   unit: 'marine',                         // 'marine' | 'marauder'
   fireRate: 1 / 9, dmg: 2, hsDmg: 34,
-  minerals: 0, gunLvl: 1,                 // shard wallet + armory tune level
+  minerals: 0, gunLvl: 1, armorLvl: 1,    // shard wallet + armory marks
   dmgBase: 2, hsBase: 34, healBase: 0,    // un-upgraded spec — setUnit fills these
+  rateBase: 1 / 9, maxHpBase: 100,
   reloading: false, reloadT: 0,
   fireT: 0, firing: false, aiming: false, ads: false,
   firingMouse: false, aimingMouse: false,
@@ -223,21 +224,45 @@ function stimPack() {
   UI.toast('STIMPACK — SYSTEMS HOT');
 }
 
-/* ---------- armory — shard crystals tune the weapon (medic: the beam) ---------- */
+/* ---------- armory — shard crystals tune gun + plating ---------- */
 const UPGRADE_COST = 40, UPGRADE_MAX = 5;
-function upgradeGun() {
-  if (!Game.running || Player.dead) return;
-  if (Player.gunLvl >= UPGRADE_MAX) { Audio2.dry(); UI.toast('WEAPON AT MAX SPEC'); return; }
-  if (Player.minerals < UPGRADE_COST) { Audio2.dry(); UI.toast('NEED ' + UPGRADE_COST + ' MINERALS'); return; }
-  Player.minerals -= UPGRADE_COST;
-  Player.gunLvl++;
-  const mul = 1 + .3 * (Player.gunLvl - 1);          // +30% per mark
-  Player.dmg = Math.round(Player.dmgBase * mul);
-  Player.hsDmg = Math.round(Player.hsBase * mul);
-  Player.healPwr = Math.round((Player.healBase || 0) * mul);
+
+/* recompute live stats from the marks — wounds keep their fraction */
+function applyKit() {
+  const g = 1 + .3 * (Player.gunLvl - 1),            // +30% damage a mark
+        r = 1 - .11 * (Player.gunLvl - 1),           // −11% cycle time a mark
+        a = 1 + .25 * (Player.armorLvl - 1),         // +25% plating a mark
+        keep = Player.maxHp ? Player.hp / Player.maxHp : 1;
+  Player.dmg = Math.round(Player.dmgBase * g);
+  Player.hsDmg = Math.round(Player.hsBase * g);
+  Player.healPwr = Math.round(Player.healBase * g);
+  Player.fireRate = Math.max(.05, Player.rateBase * r);
+  Player.maxHp = Math.round(Player.maxHpBase * a);
+  Player.hp = Math.min(Player.maxHp, Math.round(Player.maxHp * keep));
+}
+
+function buyGun() {                                  // +damage AND +fire-rate
+  if (Player.gunLvl >= UPGRADE_MAX) { Audio2.dry(); UI.toast('WEAPON AT MAX SPEC'); return false; }
+  if (Player.minerals < UPGRADE_COST) { Audio2.dry(); UI.toast('NEED ' + UPGRADE_COST + ' MINERALS'); return false; }
+  Player.minerals -= UPGRADE_COST; Player.gunLvl++;
+  applyKit();
   Audio2.pickup(); Audio2.tone(1180, .1, 'square', .08, 1760);
-  UI.toast(Player.unit === 'medic' ? 'BEAM TUNED — MK ' + Player.gunLvl
-                                 : 'WEAPON TUNED — MK ' + Player.gunLvl);
+  UI.toast((Player.unit === 'medic' ? 'BEAM TUNED — MK ' : 'WEAPON TUNED — MK ') + Player.gunLvl);
+  return true;
+}
+function buyArmor() {                                // +plating — refit seals you to full
+  if (Player.armorLvl >= UPGRADE_MAX) { Audio2.dry(); UI.toast('ARMOR AT MAX SPEC'); return false; }
+  if (Player.minerals < UPGRADE_COST) { Audio2.dry(); UI.toast('NEED ' + UPGRADE_COST + ' MINERALS'); return false; }
+  Player.minerals -= UPGRADE_COST; Player.armorLvl++;
+  applyKit();
+  Player.hp = Player.maxHp;                          // fresh plate goes on hot
+  Audio2.pickup(); Audio2.tone(720, .12, 'square', .08, 980);
+  UI.toast('CMC PLATING — MK ' + Player.armorLvl);
+  return true;
+}
+function upgradeGun() {                              // field tune — B key
+  if (!Game.running || Player.dead) return;
+  buyGun();
 }
 
 function movePlayer(dt, moveX, moveZ, sprint) {
@@ -790,13 +815,12 @@ function setUnit(unit) {
   // marauder is command issue — marine until you earn the star
   Player.unit = (unit === 'marauder' && !Game.leader) ? 'marine'
               : (unit in UNITS ? unit : 'marine');
-  Player.maxHp = u.hp; Player.hp = u.hp;
   Player.magSize = u.mag; Player.mag = u.mag; Player.reserve = u.reserve;
-  Player.fireRate = u.rate;
+  Player.rateBase = u.rate;
   Player.dmgBase = u.dmg; Player.hsBase = u.hs; Player.healBase = u.heal || 0;
-  const mul = 1 + .3 * (Player.gunLvl - 1);            // keep your tune on the new frame
-  Player.dmg = Math.round(u.dmg * mul); Player.hsDmg = Math.round(u.hs * mul);
-  Player.healPwr = Math.round((u.heal || 0) * mul);
+  Player.maxHpBase = u.hp;
+  applyKit();                                        // marks + plating carry to the new frame
+  Player.hp = Player.maxHp;                          // fresh frame ships fully patched
   Player.energyMax = u.nrg || 0; Player.energy = Player.energyMax;
   Player.stimT = 0; Player.stimCd = 0;               // fresh dose on redeploy
   if (Player.muzzle) {                          // beam color follows the kit

@@ -188,7 +188,7 @@ function pollPad(dt) {
   if (once(12)) upgradeGun();                        // D-pad up — armory
   if (once(0)) tryJump();                            // A
   if (once(9)) {                                     // Start
-    if (Player.dead || Game.won) restart();
+    if (Player.dead || Game.won) Net.on ? restart() : returnToBarracks();
     else if (!Game.running && !Intro.playing && !Intro.story && Intro.visiting) deployFromBarracks();
     else if (!Game.running && !Intro.playing && !Intro.story && !Intro.visiting
              && $id('lobbyscreen').classList.contains('hidden')) {
@@ -262,8 +262,15 @@ function startGame(online) {
   Game.paused = false;
   Game.won = false; Game.leader = false;
   Game.time = 0;
+  Game.reinfT = Game.online ? -1 : 300;         // lift runs a stick in at 5:00 — solo only
   Player.kills = 0;
-  Player.minerals = 0; Player.gunLvl = 1;              // fresh contract, empty pouch
+  Player.dead = false;                          // fresh drop, fresh body
+  Player.reloading = false; Player.firing = Player.firingMouse = false;
+  Player.aiming = Player.aimingMouse = Player.ads = false;
+  Player.pos.set(0, 0, 0); Player.vel.set(0, 0, 0);
+  Player.yaw = Math.PI; Player.pitch = 0;
+  // wallet + armory marks persist — what you bank in the field you spend in the barracks
+  $id('lift').classList.toggle('hidden', Game.online);
   Intro.menu = false;                         // leave the barracks backdrop
   resetBaseLift();                            // your ride dusts off a few sec in
   setUnit(Game.unit);                     // marine or marauder loadout
@@ -322,6 +329,7 @@ function respawn() {
   Player.mag = Player.magSize;
   Player.reserve = Math.max(Player.reserve, Player.unit === 'marauder' ? 24 : 96);
   Player.reloading = false; Player.firing = Player.firingMouse = false;
+  Player.aiming = Player.aimingMouse = Player.ads = false;
   const a = Math.random() * Math.PI * 2;        // drop near center, random angle
   Player.pos.set(Math.sin(a) * 4, 0, Math.cos(a) * 4);
   Player.vel.set(0, 0, 0);
@@ -332,8 +340,8 @@ function respawn() {
   canvasClick();
 }
 
-function restart() {
-  // clear entities
+/* scrub the field — entities, gibs, pickups, tracers; hives go back to eggs */
+function resetField() {
   for (const e of Enemies.list) Enemies.scene.remove(e.mesh);
   for (const g of Enemies.gibs) Enemies.scene.remove(g.m);
   for (const p of Enemies.pickups) Enemies.scene.remove(p.m);
@@ -357,6 +365,48 @@ function restart() {
       eg.m.visible = true;
     }
   }
+}
+
+/* K.I.A. / zone secure → the ride home — squad's in the barn, wallet kept */
+function returnToBarracks() {
+  resetField();
+  Enemies.kills = 0;
+  Game.running = false; Game.won = false; Game.paused = false;
+  Game.reinfT = -1;
+  Player.dead = false; Player.reloading = false;
+  Player.firing = Player.firingMouse = false;
+  Player.aiming = Player.aimingMouse = Player.ads = false;
+  Player.pos.set(0, 0, 0); Player.vel.set(0, 0, 0);
+  Player.yaw = Math.PI; Player.pitch = 0;
+  for (const id of ['gameover', 'victory', 'hud', 'lift'])
+    $id(id).classList.add('hidden');
+  enterBarracks();                             // walk the deck — armory's open
+  Audio2.say && Audio2.say("Welcome back to the barn, LT — armory's open.", { rate: .95 });
+}
+
+/* 5:00 hits — the lift unloads a fresh stick + a shard cache on the pad */
+function dropReinforcements() {
+  const pad = { x: 0, z: 18 };
+  spawnReinforcements(3, pad);                              // rank-and-file, no stars
+  for (let i = 0; i < 8; i++) {                             // supply crate of crystals
+    const a = Math.random() * Math.PI * 2, r = 1.4 + Math.random() * 3.2;
+    dropPickup({ x: pad.x + Math.cos(a) * r, z: pad.z + Math.sin(a) * r }, 'ammo');
+  }
+  const b = World.base;
+  if (b && !b.boomed && b.g.visible) {
+    if (b.delay < 0) b.delay = 2.5;                         // unloaded — she dusts off
+    UI.waveBanner('REINFORCEMENTS ON THE PAD — GRAB THE CRYSTALS');
+    Audio2.say && Audio2.say('Stick off the lift — crystals on the pad, marines.', { rate: .95 });
+  } else {
+    UI.waveBanner('REINFORCEMENTS HIKED IN — CRYSTALS SECURED');
+    Audio2.say && Audio2.say('Marines hiked in — command is still mad about the ride.', { rate: .95 });
+  }
+  Audio2.noise(.6, .25, 300, .6);
+  $id('lift').textContent = 'LIFT —';
+}
+
+function restart() {
+  resetField();
   if (Net.on && !Net.isHost) { UI.toast('WAITING ON FIELD COMMAND'); return; }
   Enemies.kills = 0;
   if (Net.on) { Net.resetMatch(); Net.send('restart', {}); }
@@ -368,8 +418,10 @@ function restart() {
   Player.yaw = Math.PI; Player.pitch = 0;
   Waves.wave = 0; Waves.t = 0; Waves.spawnT = 1.2;
   Game.won = false; Game.time = 0; Game.leader = false;
+  Game.reinfT = Game.online ? -1 : 300;
   Player.kills = 0;
-  Player.minerals = 0; Player.gunLvl = 1;              // fresh contract, empty pouch
+  // shard wallet + armory marks persist across redeploys — you keep what you earned
+  $id('lift').classList.toggle('hidden', Game.online);
   $id('gameover').classList.add('hidden');
   $id('victory').classList.add('hidden');
   $id('hud').classList.remove('hidden');
@@ -449,7 +501,7 @@ window.addEventListener('load', () => {
   $id('paused').addEventListener('click', canvasClick);
   // squad comms — Z/X/C/V keys + HUD buttons
   document.addEventListener('keydown', e => {
-    const c = { z: 'fall', x: 'push', c: 'thanks', v: 'sorry' }[e.key.toLowerCase()];
+    const c = { z: 'fall', x: 'push', c: 'thanks', v: 'sorry', g: 'hello' }[e.key.toLowerCase()];
     if (c) issueOrder(c);
   });
   document.querySelectorAll('#comms button').forEach(b =>
@@ -482,8 +534,8 @@ window.addEventListener('load', () => {
   };
   document.querySelectorAll('.world').forEach(b =>
     b.addEventListener('click', () => { joinWorld(b.dataset.w); canvasClick(); }));
-  $id('btn-retry').onclick = restart;
-  $id('btn-vretry').onclick = restart;
+  $id('btn-retry').onclick = () => Net.on ? restart() : returnToBarracks();
+  $id('btn-vretry').onclick = () => Net.on ? restart() : returnToBarracks();
   window.addEventListener('resize', () => {
     renderer.setSize(innerWidth, innerHeight);
     cam.aspect = innerWidth / innerHeight;
@@ -493,7 +545,8 @@ window.addEventListener('load', () => {
   });
   // Enter also starts
   window.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !Game.running && (Player.dead || Game.won)) restart();
+    if (e.key === 'Enter' && !Game.running && (Player.dead || Game.won))
+      Net.on ? restart() : returnToBarracks();
     else if (e.key === 'Enter' && !Game.running && !Intro.playing && !Intro.story && Intro.visiting) {
       deployFromBarracks();
     }
@@ -565,6 +618,13 @@ window.addEventListener('load', () => {
       updatePickups(dt);
       updateTracers(dt);
       updateBase(dt);                              // ride home spools up + lifts
+      if (Game.reinfT > 0) {                       // 5:00 — stick of marines + shard cache
+        Game.reinfT -= dt;
+        const tot = Math.max(0, Math.ceil(Game.reinfT));
+        $id('lift').textContent = 'LIFT ' + Math.floor(tot / 60) + ':' +
+          String(tot % 60).padStart(2, '0');
+        if (Game.reinfT <= 0) dropReinforcements();
+      }
       UI.updateHud();
       drawRadar();
       } catch (err) {                                  // surface sim errors instead of freezing

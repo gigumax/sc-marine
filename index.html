@@ -31,6 +31,7 @@
     <div id="score">KILLS 0</div>
     <div id="rank">PVT · 0/50</div>
     <div id="objective">FOLLOW ★ — DESTROY THE HIVES</div>
+    <div id="lift" class="hidden">LIFT 5:00</div>
     <div id="mode-tag" class="hidden">ONLINE</div>
     <div id="lobby" class="hidden">SEARCHING FOR SQUAD…</div>
   </div>
@@ -44,6 +45,7 @@
       <button data-cmd="push"><i>X</i>PUSH UP</button>
       <button data-cmd="thanks"><i>C</i>THANKS</button>
       <button data-cmd="sorry"><i>V</i>SORRY</button>
+      <button data-cmd="hello"><i>G</i>HELLO</button>
     </div>
     <div id="hp-label">VITALS</div>
     <div id="hp-bar"><i id="hp-fill"></i><span id="hp-num">100</span></div>
@@ -102,8 +104,10 @@
 
 <!-- back chip + suit hint shown while touring the barracks -->
 <button id="barracks-back" class="ghost hidden">◄ BACK TO ROSTER</button>
-<div id="barracks-hint" class="hidden">SUIT UP — CLICK YOUR RIG</div>
-<div id="war-ask" class="hidden"></div>
+  <div id="barracks-hint" class="hidden">LOOK AT YOUR RIG — CLICK TO SUIT UP</div>
+  <div id="bar-min" class="hidden">⬡ <b id="bar-min-num">0</b><span>ARMORY ON THE EAST WALL</span></div>
+  <div id="war-ask" class="hidden"></div>
+  <div id="armory-panel" class="hidden"></div>
 
 <!-- start screen -->
 <div id="startscreen" class="overlay">
@@ -144,7 +148,7 @@
   <div class="panel">
     <h1 class="win">ZONE SECURE</h1>
     <p id="win-stats"></p>
-    <button id="btn-vretry">Redeploy</button>
+    <button id="btn-vretry">Back to barracks</button>
   </div>
 </div>
 
@@ -153,7 +157,7 @@
   <div class="panel">
     <h1 class="dead">K.I.A.</h1>
     <p id="death-stats"></p>
-    <button id="btn-retry">Redeploy</button>
+    <button id="btn-retry">Back to barracks</button>
   </div>
 </div>
 

@@ -107,13 +107,13 @@ html,body { width:100%; height:100%; background:#000; overflow:hidden;
 
 /* squad comms — order buttons + radio feed */
 #comms { display:flex; gap:5px; margin-bottom:10px; }
-#comms button { background:rgba(10,22,38,.8); border:1px solid #2a558a; border-radius:3px;
-  color:#9fd0ff; font-family:inherit; font-size:9px; letter-spacing:1px; font-weight:700;
-  padding:4px 7px; cursor:pointer; display:flex; align-items:center; gap:5px; }
+#comms button { background:rgba(8,18,32,.85); border:1px solid #2a558a; border-left:3px solid #ffd24a;
+  border-radius:3px; padding:9px 16px; text-align:left; letter-spacing:1px;
+  font-size:11px; color:#cfe4ff; text-shadow:0 1px 4px #000; }
 #comms button:hover { background:#1a3a5c; border-color:#5a8abe; }
 #comms button:active { background:#2a558a; }
 #comms button i { font-style:normal; font-size:8px; color:#ffd24a;
-  border:1px solid #5a4a1a; border-radius:2px; padding:1px 4px; background:rgba(30,24,8,.8); }
+  border:1px solid #5a4a1a; border-radius:2px; padding:1px 5px; background:rgba(30,24,8,.8); }
 
 #chat { position:absolute; left:18px; bottom:230px; width:280px;
   font-size:12px; text-shadow:0 1px 4px #000; pointer-events:none; }
@@ -180,6 +180,9 @@ html,body { width:100%; height:100%; background:#000; overflow:hidden;
   text-shadow:0 0 8px rgba(255,210,74,.5); }
 #objective { font-size:10px; letter-spacing:2px; color:#ffb04a; margin-top:3px;
   text-shadow:0 0 8px rgba(255,160,60,.35); }
+#lift { font-size:11px; letter-spacing:2px; color:#5ab4ff; margin-top:3px;
+  text-shadow:0 0 8px rgba(60,150,255,.45), 0 1px 3px #000;
+  font-variant-numeric:tabular-nums; }
 #squad .chip.you { border-color:#ffd24a; }
 #squad .chip.you b { color:#ffd24a !important; }
 .panel h2 { font-size:26px; letter-spacing:6px; color:#9fd0ff; }
@@ -272,7 +275,24 @@ button.ghost:hover { color:#cfe4ff; border-color:#5a8aba; }
   background:rgba(8,18,32,.85); border:1px solid #2a558a; border-left:3px solid #ffd24a;
   border-radius:3px; padding:9px 16px; text-shadow:0 1px 3px #000;
   animation:chatin .18s ease-out; }
+#bar-min { position:fixed; right:18px; bottom:16px; z-index:24;
+  font-size:12px; letter-spacing:2px; color:#5ab4ff; pointer-events:none;
+  background:rgba(8,18,32,.85); border:1px solid #2a558a; border-left:3px solid #5ab4ff;
+  border-radius:3px; padding:8px 14px; text-shadow:0 1px 3px #000; }
+#bar-min b { color:#dff0ff; font-variant-numeric:tabular-nums; margin-right:10px; }
+#bar-min span { color:#7fa8d0; font-size:10px; }
 #war-ask b { letter-spacing:2px; }
 #war-ask i { font-style:normal; color:#ffd24a; margin-left:12px;
+  border:1px solid #5a4a1a; border-radius:2px; padding:1px 6px; background:rgba(30,24,8,.8); }
+/* armory order board — pops while you stand at the bench */
+#armory-panel { position:fixed; left:50%; bottom:26vh; transform:translateX(-50%);
+  z-index:24; font-size:12px; letter-spacing:1px; color:#cfe4ff; pointer-events:none;
+  background:rgba(8,18,32,.88); border:1px solid #2a558a; border-left:3px solid #4ad0ff;
+  border-radius:3px; padding:10px 16px 9px; text-shadow:0 1px 3px #000;
+  animation:chatin .18s ease-out; }
+#armory-panel b { color:#4ad0ff; letter-spacing:2px; margin-right:12px; }
+#armory-panel em { font-style:normal; color:#ffd24a; }
+#armory-panel u { display:block; text-decoration:none; margin-top:5px; }
+#armory-panel i { font-style:normal; color:#ffd24a; margin-left:12px;
   border:1px solid #5a4a1a; border-radius:2px; padding:1px 6px; background:rgba(30,24,8,.8); }
 #startscreen #btn-online { margin-top:16px; }

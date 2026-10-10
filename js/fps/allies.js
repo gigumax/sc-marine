@@ -44,6 +44,7 @@ const BARKS = {
   fallAck:  ['"Copy — falling back!"', '"Pulling back!"', '"Regroup on the LT!"'],
   pushAck:  ['"Pushing the hives!"', '"Moving up!"', '"You got it — advancing!"'],
   thanks:   ['"Anytime, LT."', '"Just doing my job."', '"All in a day\'s work."'],
+  helloAck: ['"LT."', '"Back at you, LT."', '"Oorah."', '"Sir."', '"Hey, LT."'],
   sorry:    ['"Watch it next time."', '"All good, LT."', '"Forget it."'],
   crit:     ['"I\'m hit bad!"', '"Taking heavy fire!"', '"Armor\'s failing!"'],
   coverYou: ['"LT\'s bleeding out — cover him!"', '"Protect the LT!"'],
@@ -78,7 +79,7 @@ function allySay(a, text, force) {
 
 // Z/X/C/V or comms buttons — you give the order, the squad acknowledges
 // online: the line goes out to real squadmates instead of AI barks
-const COMM_LINES = { fall: '"Fall back on me!"', push: '"Push the hives!"', thanks: '"Thanks!"', sorry: '"My bad."' };
+const COMM_LINES = { fall: '"Fall back on me!"', push: '"Push the hives!"', thanks: '"Thanks!"', sorry: '"My bad."', hello: '"Hello, squad."' };
 function issueOrder(cmd) {
   if (!Game.running || Player.dead) return;
   Audio2.radio();
@@ -96,6 +97,13 @@ function issueOrder(cmd) {
     Allies.cmd = 'push';
     squadChat('YOU', '"Push the hives!"', '#ffffff');
     allySay(lead, pick(BARKS.pushAck), true);
+  } else if (cmd === 'hello') {
+    squadChat('YOU', '"Hello, squad."', '#ffffff');
+    setTimeout(() => {                                   // somebody hails back a beat later
+      const alive = Allies.list.filter(a => !a.dead);
+      if (alive.length && Game.running && !Player.dead)
+        allySay(alive[Math.floor(Math.random() * alive.length)], pick(BARKS.helloAck), true);
+    }, 650);
   } else if (cmd === 'thanks' || cmd === 'sorry') {
     squadChat('YOU', cmd === 'thanks' ? '"Thanks!"' : '"My bad."', '#ffffff');
     const alive = Allies.list.filter(a => !a.dead);
@@ -536,6 +544,26 @@ function spawnAllies() {
       sl,
       new THREE.Vector3(Player.pos.x + sl.x * cos + sl.z * sin, 0,
                         Player.pos.z - sl.x * sin + sl.z * cos));
+  }
+  buildSquadHud();
+}
+
+/* lift drops a stick of fresh marines mid-mission — they walk to formation */
+const REINF_NAMES = ['REYES', 'ONDA', 'VANCE', 'KELLER', 'MOSLEY', 'PRYCE', 'ODUM', 'HALE'];
+let _reinfN = 0;
+function spawnReinforcements(n, at) {
+  if (Net.on) return;                                   // solo ops only — hosts sync their own squads
+  for (let i = 0; i < n; i++) {
+    const k = _reinfN++;
+    const name = REINF_NAMES[k % REINF_NAMES.length] +
+      (k >= REINF_NAMES.length ? '-' + (1 + Math.floor(k / REINF_NAMES.length)) : '');
+    const accent = Allies.accents[k % Allies.accents.length];
+    const slot = Allies.slots[(Allies.list.length + i) % Allies.slots.length];
+    mkAlly(Allies.list.length + i, name,
+      '#' + accent.toString(16).padStart(6, '0'), false,
+      buildMarineMesh(accent), slot,
+      new THREE.Vector3(at.x + (Math.random() - .5) * 3.4, 0,
+                        at.z + (Math.random() - .5) * 3.4));
   }
   buildSquadHud();
 }
