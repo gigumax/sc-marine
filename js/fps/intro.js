@@ -25,6 +25,7 @@ const Intro = {
   // opening story — flies the REAL map while eggs hatch and the pack runs
   story: false, storyT: 0, storyCam: null, storyMarines: [], storyFx: [], fxT: 0,
   storyFire: null, smokeT: 0, _boomed: false, storyCity: [], storyCivs: [], killT: 0,
+  storyGibs: [],                          // armor chunks torn off broken marines
   storyBlood: [],
 
   civMesh() {                                    // tiny panicked citizen
@@ -53,6 +54,46 @@ const Intro = {
     m.add(w);                                    // rides along — visible once he's on his back
   },
 
+  maimMarine(m) {                                // intact — minus a piece, slumped hard
+    const ud = m.userData, wp = new THREE.Vector3();
+    const parts = m.children.filter(k =>
+      (k.isMesh || k.isGroup) && k !== ud.barBg && k !== ud.barFg &&
+      (k.isGroup || Math.abs(k.position.x) > .3 || k.position.y > 1.6));  // pads, arms, helm, visor, gun
+    if (parts.length) {
+      const k = parts[Math.floor(Math.random() * parts.length)];
+      k.getWorldPosition(wp); Enemies.scene.add(k);
+      k.position.set(wp.x + (Math.random() - .5) * .7, Math.max(.07, wp.y * .3),
+        wp.z + (Math.random() - .5) * .7);
+      k.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+      this.storyGibs.push({ m: k, dead: true });   // already flopped on the deck
+    }
+    m.rotation.z = (Math.random() - .5) * .55;       // hard slump, not a clean fall
+    this.marineBlood(m);
+    this.marineWound(m); this.marineWound(m);        // extra torn plating
+  },
+
+  shatterMarine(m) {                               // torn apart — every plate a flying gib
+    const ud = m.userData, wp = new THREE.Vector3();
+    for (const k of [...m.children]) {
+      if (k === ud.barBg || k === ud.barFg) continue;// health bars die with the body
+      k.getWorldPosition(wp); Enemies.scene.add(k);
+      k.position.copy(wp);
+      k.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+      this.storyGibs.push({ m: k,
+        vx: (wp.x - m.position.x) * 5 + (Math.random() - .5) * 3,   // flung outward
+        vz: (wp.z - m.position.z) * 5 + (Math.random() - .5) * 3,
+        vy: 2.5 + Math.random() * 3.5,
+        rx: (Math.random() - .5) * 10, rz: (Math.random() - .5) * 10,
+        rest: .05 + Math.random() * .15, dead: false });
+    }
+    m.visible = false;
+    const p = new THREE.Mesh(_poolGeo, _woundMat);   // he's the puddle now
+    p.position.set(m.position.x, .02 + Math.random() * .012, m.position.z);
+    p.rotation.x = -Math.PI / 2; p.scale.setScalar(1.5 + Math.random() * .7);
+    Enemies.scene.add(p); this.storyBlood.push(p);
+    try { bloodBurst(m.position.clone().setY(.9), 14); Audio2.noise(.4, .4, 300, .8); } catch (e) {}
+  },
+
   marineHit(mr, dmg, kx, kz) {                   // armor soaks hits — he falls when hp runs out
     const ud = mr.userData;
     if (ud.fell) return true;
@@ -65,7 +106,10 @@ const Intro = {
       Audio2.hitAt(5 + dmg * 2);
       if (ud.hp <= 0) {
         ud.fell = true;                          // finally dragged down
-        this.marineBlood(mr);
+        if (Math.random() < .3) {                // torn to pieces — no body left to fall
+          ud.fellDone = true; this.shatterMarine(mr);
+        } else if (Math.random() < .55) this.maimMarine(mr);   // broken — minus a piece
+        else this.marineBlood(mr);
         Audio2.screech(10);
       }
     } catch (e) {}
@@ -486,6 +530,7 @@ const Intro = {
 
     // civilians loose in the streets — a hundred screaming dots, some don't make it
     this.storyCivs = [];
+    this.storyGibs = [];
     for (let i = 0; i < 100; i++) {
       const m = this.civMesh();
       m.position.set((Math.random() - .5) * 52, 0, 2 + Math.random() * 32);
@@ -772,6 +817,20 @@ const Intro = {
       } else if (!ud.wall) {                                       // nothing in range — patrol a little
         m.position.x += Math.sin(t * .8 + mi * 2.3) * dt * .6;
         m.position.z += Math.cos(t * .7 + mi * 1.9) * dt * .6;
+      }
+    }
+
+    // armor gibs — tumble, bounce off the deck, settle where they land
+    for (const g of this.storyGibs) {
+      if (g.dead) continue;
+      g.m.position.x += g.vx * dt; g.m.position.z += g.vz * dt;
+      g.m.position.y += g.vy * dt; g.vy -= 9.8 * dt;
+      g.m.rotation.x += g.rx * dt; g.m.rotation.z += g.rz * dt;
+      if (g.m.position.y <= g.rest) {
+        g.m.position.y = g.rest;
+        if (g.vy < -1.2) {                           // bounce — bleed most of it off
+          g.vy = -g.vy * .32; g.vx *= .55; g.vz *= .55; g.rx *= .5; g.rz *= .5;
+        } else { g.vy = g.vx = g.vz = g.rx = g.rz = 0; g.dead = true; }
       }
     }
 
@@ -1064,7 +1123,8 @@ const Intro = {
     }
     this.horde = [];
     for (const p of this.storyBlood) Enemies.scene.remove(p);
-    this.storyMarines = []; this.storyUltras = []; this.storyFx = []; this.storyBlood = [];
+    for (const g of this.storyGibs || []) Enemies.scene.remove(g.m);
+    this.storyMarines = []; this.storyUltras = []; this.storyFx = []; this.storyBlood = []; this.storyGibs = [];
     if (this.storyFire) { Enemies.scene.remove(this.storyFire); this.storyFire = null; }
     if (this.cityGlow) { Enemies.scene.remove(this.cityGlow); this.cityGlow = null; }
     for (const B of this.storyCity) Enemies.scene.remove(B.g);
