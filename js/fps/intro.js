@@ -158,6 +158,7 @@ const Intro = {
       (parent || s).add(b);
       return b;
     };
+    this._mats = { armor, dark, glowC }; this._B = B;   // squad rigs clone your hatch
 
     /* --- barracks hall: 22 wide, 6 high, 26 deep — door wall at z=+12 --- */
     const fl = new THREE.Mesh(new THREE.PlaneGeometry(22, 26), floor);
@@ -287,6 +288,7 @@ const Intro = {
       if (gun) body.remove(gun);                          // weapon lockers are elsewhere
       if (body.userData.barBg)
         body.userData.barBg.visible = body.userData.barFg.visible = false;
+      body.add(this._chestRig(unit === 'marauder'));      // same four-corner hatch
       rk.add(body);
       rk.userData.body = body;                        // emptied when its owner steps out
       return rk;
@@ -340,6 +342,7 @@ const Intro = {
       const arm = (q.isLead ? buildMarauderMesh : buildMarineMesh)(playerAccent());
       for (const k of ['barBg', 'barFg', 'star'])
         if (arm.userData[k]) arm.userData[k].visible = false;
+      arm.add(this._chestRig(q.isLead));                // worn suit keeps its hatch
       arm.position.copy(q.m.position); arm.rotation.copy(q.m.rotation);
       q.bare.visible = false;
       arm.scale.setScalar(1.12);                                    // slam-on pop
@@ -446,6 +449,31 @@ const Intro = {
     this._greetHide = setTimeout(() => {
       if (this.visiting && !this.warAsk) w.classList.add('hidden');
     }, 3400);
+  },
+
+  /* the four-corner chest hatch — same as your rig: dark cavity, lit core,
+     four plates on tangent pivots (sealed pose). hvy seats it on a marauder slab */
+  _chestRig(hvy) {
+    if (!this._mats) this.build();                   // scene not built yet — material kit lives there
+    const { armor, dark, glowC } = this._mats, B = this._B;
+    const g = new THREE.Group();
+    const cy = hvy ? .14 : 0, cz = hvy ? .1 : 0, sx = hvy ? 1.25 : 1;
+    B(.5 * sx, .66, .05, dark, 0, 1.18 + cy, .2 + cz, g);
+    const core = B(.16, .16, .03, glowC, 0, 1.18 + cy, .215 + cz, g);
+    core.material = core.material.clone();
+    const panels = [];
+    for (const [cx, cyy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
+      const pivot = new THREE.Group();
+      pivot.position.set(cx * .27 * sx, 1.18 + cy + cyy * .33, .24 + cz);
+      pivot.userData.axis = new THREE.Vector3(-cyy, cx, 0).normalize();
+      const plate = B(.26 * sx, .33, .06, armor, -cx * .135, -cyy * .16, .03, pivot);
+      plate.material = plate.material.clone();
+      plate.material.color.setHex(0x36495e);
+      B(.05, .05, .065, glowC, -cx * .06, -cyy * .08, .04, pivot);
+      panels.push(pivot);
+    }
+    g.userData.panels = panels; g.userData.core = core;
+    return g;
   },
 
   /* swap the racked rig to the class the player picked */
@@ -583,6 +611,7 @@ const Intro = {
         const m = (kind === 'rau' ? buildMarauderMesh : buildMarineMesh)(0x4ad0ff);
         m.position.set(wx + (Math.random() - .5) * .5, 0, rz + (Math.random() - .5) * .4);
         m.rotation.y = Math.PI + (Math.random() - .5) * .16;   // face the swarm
+        m.add(this._chestRig(kind === 'rau'));                  // same hatch on the wall
         for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
         m.userData.strafe = Math.random() < .5 ? -1 : 1;
         m.userData.wall = true;                                // hold the line — no wandering
@@ -594,6 +623,7 @@ const Intro = {
       const m = buildMarauderMesh(0x4ad0ff);
       m.position.set(fx, 0, 10.6);
       m.rotation.y = Math.PI;
+      m.add(this._chestRig(true));                              // same hatch on the wall
       for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
       m.userData.strafe = fx < 0 ? 1 : -1;
       m.userData.wall = true;
@@ -1110,6 +1140,7 @@ const Intro = {
         if (gun) body.remove(gun);
         if (body.userData.barBg)
           body.userData.barBg.visible = body.userData.barFg.visible = false;
+        body.add(this._chestRig(q.isLead));            // re-hung rig, same hatch
         body.visible = old.visible;                    // mid-cine rigs stay off the hooks
         q.rack.remove(old); q.rack.add(body);
         q.rack.userData.body = body;

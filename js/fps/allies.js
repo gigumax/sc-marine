@@ -536,11 +536,13 @@ function spawnAllies() {
   for (let i = 0; i < n; i++) {
     const isLead = i === li1 || i === li2;            // commanders wear marauder chassis
     const sl = Allies.slots[i];
+    const mesh = (isLead ? buildMarauderMesh : buildMarineMesh)(playerAccent());
+    mesh.add(Intro._chestRig(isLead));                // same four-corner hatch as your rig
     // spawn in the wedge behind the player's facing dir
     mkAlly(i, Allies.names[i],
       '#' + Allies.accents[i].toString(16).padStart(6, '0'),
       isLead,
-      (isLead ? buildMarauderMesh : buildMarineMesh)(playerAccent()),
+      mesh,
       sl,
       new THREE.Vector3(Player.pos.x + sl.x * cos + sl.z * sin, 0,
                         Player.pos.z - sl.x * sin + sl.z * cos));
@@ -559,9 +561,11 @@ function spawnReinforcements(n, at) {
       (k >= REINF_NAMES.length ? '-' + (1 + Math.floor(k / REINF_NAMES.length)) : '');
     const accent = Allies.accents[k % Allies.accents.length];
     const slot = Allies.slots[(Allies.list.length + i) % Allies.slots.length];
+    const mesh = buildMarineMesh(playerAccent());
+    mesh.add(Intro._chestRig(false));                 // same four-corner hatch as your rig
     mkAlly(Allies.list.length + i, name,
       '#' + accent.toString(16).padStart(6, '0'), false,
-      buildMarineMesh(playerAccent()), slot,
+      mesh, slot,
       new THREE.Vector3(at.x + (Math.random() - .5) * 3.4, 0,
                         at.z + (Math.random() - .5) * 3.4));
   }
