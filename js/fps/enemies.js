@@ -766,16 +766,27 @@ function updatePickups(dt) {
     p.m.position.y = 0.5 + Math.sin(p.t * 3) * 0.12;
     const d = Math.hypot(p.m.position.x - Player.pos.x, p.m.position.z - Player.pos.z);
     if (d < 1.6) {
-      if (p.type === 'ammo') {
-        if (Player.unit === 'medic') {          // blue cubes are capacitor charge for medics
+      if (p.type === 'ammo') {                  // mineral shard — 10 toward the gun tune
+        Player.minerals += 10;
+        if (Player.unit === 'medic') {          // medics still sip capacitor charge too
           Player.energy = Math.min(Player.energyMax, Player.energy + 35);
-          UI.toast('+35 ENERGY');
-        } else { Player.reserve = Math.min(480, Player.reserve + 40); UI.toast('+40 AMMO'); }
+          UI.toast('+10 MINERALS · +35 ENERGY');
+        } else UI.toast('+10 MINERALS');
       }
       else { Player.heal(30); UI.toast('+30 VITALS'); }
       Audio2.pickup();
       if (Net.on) Net.tookPickup(p);
       else { Enemies.scene.remove(p.m); p.done = true; }
+    }
+    // squad scavenge — an AI marine grabs any pickup he walks over
+    if (!p.done) for (const a of Allies.list) {
+      if (a.dead) continue;
+      if (Math.hypot(p.m.position.x - a.pos.x, p.m.position.z - a.pos.z) < 1.3) {
+        if (p.type === 'ammo') a.minerals += 10;
+        else a.hp = Math.min(a.maxHp, a.hp + 30);
+        Enemies.scene.remove(p.m); p.done = true;
+        break;
+      }
     }
     if (p.t > 25) { Enemies.scene.remove(p.m); p.done = true; }
   }

@@ -85,6 +85,10 @@ html,body { width:100%; height:100%; background:#000; overflow:hidden;
 #ammo.low b { color:#ff9c8a; }
 #ammo-label { font-size:11px; letter-spacing:2px; color:#7fa8d0; margin-top:2px; }
 #reload-hint { color:#ffd94a; }
+#minerals { font-size:12px; letter-spacing:2px; color:#5ab4ff; margin-top:5px;
+  text-shadow:0 0 8px rgba(60,150,255,.45), 0 1px 3px #000; }
+#minerals b { color:#dff0ff; font-variant-numeric:tabular-nums; }
+#up-hint { color:#7fa8d0; }
 
 /* squad fireteam chips */
 #squad { margin-top:12px; display:flex; gap:6px; flex-wrap:wrap; max-width:520px; }
@@ -263,4 +267,12 @@ button.ghost:hover { color:#cfe4ff; border-color:#5a8aba; }
   z-index:24; font-size:15px; letter-spacing:4px; color:#ffd24a; pointer-events:none;
   text-shadow:0 0 14px rgba(255,190,60,.7), 0 1px 3px #000;
   animation:lobbyPulse 1.4s infinite; }
+#war-ask { position:fixed; left:50%; bottom:16vh; transform:translateX(-50%);
+  z-index:24; font-size:14px; letter-spacing:1px; color:#cfe4ff; pointer-events:none;
+  background:rgba(8,18,32,.85); border:1px solid #2a558a; border-left:3px solid #ffd24a;
+  border-radius:3px; padding:9px 16px; text-shadow:0 1px 3px #000;
+  animation:chatin .18s ease-out; }
+#war-ask b { letter-spacing:2px; }
+#war-ask i { font-style:normal; color:#ffd24a; margin-left:12px;
+  border:1px solid #5a4a1a; border-radius:2px; padding:1px 6px; background:rgba(30,24,8,.8); }
 #startscreen #btn-online { margin-top:16px; }

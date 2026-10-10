@@ -13,6 +13,8 @@ const Player = {
   energy: 100, energyMax: 100,                // medic capacitor — blue cubes refill it
   unit: 'marine',                         // 'marine' | 'marauder'
   fireRate: 1 / 9, dmg: 2, hsDmg: 34,
+  minerals: 0, gunLvl: 1,                 // shard wallet + armory tune level
+  dmgBase: 2, hsBase: 34, healBase: 0,    // un-upgraded spec — setUnit fills these
   reloading: false, reloadT: 0,
   fireT: 0, firing: false, aiming: false, ads: false,
   firingMouse: false, aimingMouse: false,
@@ -185,6 +187,7 @@ function initPlayer(camera) {
   document.addEventListener('keydown', e => {
     if (e.key.toLowerCase() === 'r') startReload();
     if (e.key.toLowerCase() === 't') stimPack();
+    if (e.key.toLowerCase() === 'b') upgradeGun();
     if (e.key === ' ') { e.preventDefault(); tryJump(); }
   });
   document.addEventListener('contextmenu', e => e.preventDefault());
@@ -218,6 +221,23 @@ function stimPack() {
   Player.stimT = 7; Player.stimCd = 20;              // 7s hot, 20s till the next dose
   Audio2.stim();
   UI.toast('STIMPACK — SYSTEMS HOT');
+}
+
+/* ---------- armory — shard crystals tune the weapon (medic: the beam) ---------- */
+const UPGRADE_COST = 40, UPGRADE_MAX = 5;
+function upgradeGun() {
+  if (!Game.running || Player.dead) return;
+  if (Player.gunLvl >= UPGRADE_MAX) { Audio2.dry(); UI.toast('WEAPON AT MAX SPEC'); return; }
+  if (Player.minerals < UPGRADE_COST) { Audio2.dry(); UI.toast('NEED ' + UPGRADE_COST + ' MINERALS'); return; }
+  Player.minerals -= UPGRADE_COST;
+  Player.gunLvl++;
+  const mul = 1 + .3 * (Player.gunLvl - 1);          // +30% per mark
+  Player.dmg = Math.round(Player.dmgBase * mul);
+  Player.hsDmg = Math.round(Player.hsBase * mul);
+  Player.healPwr = Math.round((Player.healBase || 0) * mul);
+  Audio2.pickup(); Audio2.tone(1180, .1, 'square', .08, 1760);
+  UI.toast(Player.unit === 'medic' ? 'BEAM TUNED — MK ' + Player.gunLvl
+                                 : 'WEAPON TUNED — MK ' + Player.gunLvl);
 }
 
 function movePlayer(dt, moveX, moveZ, sprint) {
@@ -772,8 +792,11 @@ function setUnit(unit) {
               : (unit in UNITS ? unit : 'marine');
   Player.maxHp = u.hp; Player.hp = u.hp;
   Player.magSize = u.mag; Player.mag = u.mag; Player.reserve = u.reserve;
-  Player.fireRate = u.rate; Player.dmg = u.dmg; Player.hsDmg = u.hs;
-  Player.healPwr = u.heal || 0;
+  Player.fireRate = u.rate;
+  Player.dmgBase = u.dmg; Player.hsBase = u.hs; Player.healBase = u.heal || 0;
+  const mul = 1 + .3 * (Player.gunLvl - 1);            // keep your tune on the new frame
+  Player.dmg = Math.round(u.dmg * mul); Player.hsDmg = Math.round(u.hs * mul);
+  Player.healPwr = Math.round((u.heal || 0) * mul);
   Player.energyMax = u.nrg || 0; Player.energy = Player.energyMax;
   Player.stimT = 0; Player.stimCd = 0;               // fresh dose on redeploy
   if (Player.muzzle) {                          // beam color follows the kit

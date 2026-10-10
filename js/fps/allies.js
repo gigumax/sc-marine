@@ -49,6 +49,9 @@ const BARKS = {
   coverYou: ['"LT\'s bleeding out — cover him!"', '"Protect the LT!"'],
   cmdTaken: ['"I\'ll take point."', '"Command\'s mine — keep pushing."'],
   kill:     ['"Hostile down."', '"Got one."', '"Splattered."'],
+  upgrade:  ['"Rifle\'s tuned — watch the difference."', '"New barrel group. This one\'s on me."',
+             '"Banked enough crystals — gun\'s hot now."'],
+  mine:     ['"Grabbing crystals."', '"Minerals secured."'],
 };
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
@@ -505,6 +508,8 @@ function mkAlly(idx, name, accent, leader, mesh, slot, at) {
     slot,
     walkT: Math.random() * 7,
     regenT: 0, hurtT: 0, healT: 0,
+    minerals: 0, gunLvl: 1, dmgMul: 1,       // every marine banks his own armory fund
+    scanT: idx * 0.1, pickT: null,
     radius: 0.55,
   };
   Allies.list.push(a);
@@ -678,7 +683,7 @@ function allyShoot(a) {
   if (a.marFrame) {
     const dir = aim.clone().sub(from).normalize();
     dir.y += 0.06; dir.normalize();                  // slight loft for the arc
-    spawnMissile(from, dir, 45);                     // 45 direct / ~22 splash
+    spawnMissile(from, dir, 45 * a.dmgMul);          // 45 direct / ~22 splash
     Audio2.noise(.22, .35 * Audio2.vol(a.pos.distanceTo(Player.pos)), 480, .8); // launch whoosh
     return;
   }
@@ -694,10 +699,10 @@ function allyShoot(a) {
     (Math.random() - .5) * dist * 0.13));
   if (hit) {
     if (tgtE) {
-      damageEnemy(tgtE, 11, false);
+      damageEnemy(tgtE, 11 * a.dmgMul, false);
       if (tgtE.dead && Math.random() < 0.12) allySay(a, pick(BARKS.kill));
     }
-    else if (tgtH) damageSpawner(tgtH, 9, a.pos);
+    else if (tgtH) damageSpawner(tgtH, 9 * a.dmgMul, a.pos);
   }
   // tracer from rifle tip
   spawnTracer(from, end);
@@ -743,6 +748,26 @@ function updateAllies(dt) {
     if (a.regenT > 0) a.regenT -= dt;
     else if (a.hp < a.maxHp) a.hp = Math.min(a.maxHp, a.hp + 4.5 * dt);
     setMarineScratches(m, a.hp / a.maxHp);
+
+    /* squad armory — banked shards tune the rifle, same 40 a mark as yours */
+    if (a.minerals >= 40 && a.gunLvl < 5) {
+      a.minerals -= 40; a.gunLvl++;
+      a.dmgMul = 1 + .3 * (a.gunLvl - 1);
+      allySay(a, pick(BARKS.upgrade));
+    }
+
+    /* scavenge scan — nearest crystal shard within a jog of the squad */
+    a.scanT -= dt;
+    if (a.scanT <= 0) {
+      a.scanT = 1.3 + Math.random() * .5;
+      a.pickT = null;
+      let bd = 14;
+      for (const p of Enemies.pickups) {
+        if (p.done || p.type !== 'ammo') continue;
+        const d = Math.hypot(p.m.position.x - a.pos.x, p.m.position.z - a.pos.z);
+        if (d < bd) { bd = d; a.pickT = p; }
+      }
+    }
 
     /* --- pick target: nearest live zerg, else nearest live hive --- */
     if (a.retargetT <= 0) {
@@ -816,6 +841,11 @@ function updateAllies(dt) {
         }
       }
       if (goal) { sdx = goal.x - a.pos.x; sdz = goal.z - a.pos.z; }
+      if (!goal && a.pickT && !a.pickT.done) {              // quiet moment — mine a shard
+        sdx = a.pickT.m.position.x - a.pos.x;
+        sdz = a.pickT.m.position.z - a.pos.z;
+        holdR = 1.0;
+      }
       const gd = Math.hypot(sdx, sdz);
       if (gd > holdR) {
         const sp = gd > 10 ? 9.0 : 6.0;
@@ -839,10 +869,18 @@ function updateAllies(dt) {
       // hold ground & shoot if a target is close and we're near our slot
       const engaged = a.tgt && Math.hypot(a.tgt.mesh.position.x - a.pos.x,
                                           a.tgt.mesh.position.z - a.pos.z) < 15;
-      if (slotDist > (falling ? 0.9 : engaged && slotDist < 7 ? 7 : 0.9)) {
-        const sp = slotDist > 10 ? 9.0 : 6.0;             // sprint to catch up
-        const res = worldCollide(a.pos.x + sdx / slotDist * sp * dt,
-                                 a.pos.z + sdz / slotDist * sp * dt, a.radius);
+      // quiet + a shard in sight → break formation and go mine it
+      if (a.pickT && !a.pickT.done && !engaged) {
+        sdx = a.pickT.m.position.x - a.pos.x;
+        sdz = a.pickT.m.position.z - a.pos.z;
+      }
+      const gdx = sdx, gdz = sdz;
+      const gd = Math.hypot(gdx, gdz);
+      const scav = a.pickT && !a.pickT.done && !engaged;
+      if (gd > (scav ? 1.0 : falling ? 0.9 : engaged && slotDist < 7 ? 7 : 0.9)) {
+        const sp = gd > 10 ? 9.0 : 6.0;             // sprint to catch up
+        const res = worldCollide(a.pos.x + gdx / gd * sp * dt,
+                                 a.pos.z + gdz / gd * sp * dt, a.radius);
         a.pos.x = res.x; a.pos.z = res.z;
         a.moving = true;
         a.walkT += dt * sp * 1.5;

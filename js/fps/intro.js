@@ -240,11 +240,11 @@ const Intro = {
       const go = 9.0 + (5.4 - sz) * 0.23;                           // front rank leaves first
       this.squadList.push({
         m: bare, bare, suited: null,                                // 'suited' swaps in on deploy
-        isLead, accent: Allies.accents[i],
+        isLead, accent: Allies.accents[i], name: Allies.names[i],
         suitT: go - 0.9,                                            // armor locks right before step-off
         x: sx, z: sz,
         ry: sx < 0 ? Math.PI / 2 : -Math.PI / 2,                    // face the aisle
-        ph: Math.random() * 7,
+        ph: Math.random() * 7, wT: Math.random() * 6,               // stagger the first amble
         lane: sx < 0 ? -0.42 : 0.42,                                // file out two abreast
         go,
       });
@@ -287,11 +287,50 @@ const Intro = {
         m.rotation.y += (0 - m.rotation.y) * Math.min(1, dt * 5);   // square on the door
         m.position.y = Math.abs(Math.sin(t * 11 + s.ph)) * .07;     // march step
         if (m.position.z > 15.4) m.visible = false;                 // swallowed by the light
+      } else if (this.visiting || this.menu) {          // off-duty — amble between waypoints
+        const tx = s.askGoto ? this.vPos.x : (s.wx === undefined ? s.x : s.wx),
+              tz = s.askGoto ? this.vPos.z : (s.wz === undefined ? s.z : s.wz);
+        const dx = tx - m.position.x, dz = tz - m.position.z, d = Math.hypot(dx, dz);
+        if (d > (s.askGoto ? 1.6 : .28)) {
+          const sp = s.askGoto ? 1.6 : .85;
+          m.position.x += dx / d * sp * dt;
+          m.position.z += dz / d * sp * dt;
+          let dy = Math.atan2(dx, dz) - m.rotation.y;
+          while (dy > Math.PI) dy -= Math.PI * 2;
+          while (dy < -Math.PI) dy += Math.PI * 2;
+          m.rotation.y += dy * Math.min(1, dt * 6);
+          m.position.y = Math.abs(Math.sin(t * 8 + s.ph)) * .05;    // amble bounce
+        } else {
+          m.position.y = Math.sin(t * 1.1 + s.ph) * .012;           // idle breath
+          if (s.askGoto) {                                          // squared up on you
+            let dy = Math.atan2(this.vPos.x - m.position.x, this.vPos.z - m.position.z) - m.rotation.y;
+            while (dy > Math.PI) dy -= Math.PI * 2;
+            while (dy < -Math.PI) dy += Math.PI * 2;
+            m.rotation.y += dy * Math.min(1, dt * 8);
+          } else {
+            m.rotation.y += Math.sin(t * .45 + s.ph) * .03 * dt * 8;
+            s.wT -= dt;
+            if (s.wT <= 0) {                                        // pick the next stroll
+              s.wT = 2.5 + Math.random() * 6;
+              s.wx = -4.6 + Math.random() * 9.2;
+              s.wz = -10.4 + Math.random() * 20.8;
+              if (Math.abs(s.wx) < 1.3 && Math.abs(s.wz + .2) < 1.8)
+                s.wx = (s.wx < 0 ? -1 : 1) * (1.5 + Math.random()); // keep off your rig's pad
+            }
+          }
+        }
       } else {
         m.position.y = Math.sin(t * 1.1 + s.ph) * .012;             // idle breath
         m.rotation.y = s.ry + Math.sin(t * .45 + s.ph) * .05;
       }
     }
+  },
+
+  _warHide() {
+    if (this.warAsk) { this.warAsk.askGoto = false; this.warAsk.askShown = false; }
+    this.warAsk = null; this.warT = 22 + Math.random() * 16;        // next check-in
+    const w = document.getElementById('war-ask');
+    if (w) w.classList.add('hidden');
   },
 
   /* swap the racked rig to the class the player picked */
@@ -931,6 +970,16 @@ const Intro = {
     this.vPitch = this.vPitchT = 0;
     this.vPos.set(0, 0, 2.4); this.bobT = 0; this.vY = 0;
     Audio2.ensure();                                   // boots-on-deck sound
+    this.warT = 9 + Math.random() * 9;                               // first check-in
+    if (this.warAsk) { this.warAsk.askGoto = false; this.warAsk = null; }
+    if (this._vKey) document.removeEventListener('keydown', this._vKey);
+    this._vKey = e => {
+      if (!this.warAsk || !this.warAsk.askShown) return;
+      const k = e.key.toLowerCase();
+      if (k === 'y') { this._warHide(); if (this.onSuitTap) this.onSuitTap(); }
+      else if (k === 'n') this._warHide();
+    };
+    document.addEventListener('keydown', this._vKey);
     if (!this._vRay) this._vRay = new THREE.Raycaster();
     if (!this._vNdc) this._vNdc = new THREE.Vector2();
     if (this._vMove) document.removeEventListener('mousemove', this._vMove);
@@ -954,6 +1003,8 @@ const Intro = {
 
   leave() {
     this.visiting = false;
+    this._warHide();
+    if (this._vKey) { document.removeEventListener('keydown', this._vKey); this._vKey = null; }
     if (this._vMove) { document.removeEventListener('mousemove', this._vMove); this._vMove = null; }
     if (this._vClick) document.removeEventListener('mousedown', this._vClick);
     document.body.style.cursor = '';
@@ -1103,6 +1154,30 @@ const Intro = {
       }
       if (this.core) this.core.material.emissiveIntensity =
         .3 + (this._suitHot ? 1.6 + Math.sin(t * 6) * .8 : Math.sin(t * 2) * .3 + .3);
+      // a file lead walks over and asks — "ready for war?"
+      if (!this.warAsk) {
+        this.warT -= dt;
+        if (this.warT <= 0) {
+          const lead = this.squadList[Math.random() < .5 ? 0 : 7];   // the file commanders
+          lead.askGoto = true; lead.askShown = false;
+          this.warAsk = lead; this.warAskT = 10;                     // on a clock — don't nag
+        }
+      } else {
+        const A = this.warAsk;
+        this.warAskT -= dt;
+        const d = Math.hypot(this.vPos.x - A.m.position.x, this.vPos.z - A.m.position.z);
+        if (!A.askShown && d < 2.4) {
+          A.askShown = true;
+          const w = document.getElementById('war-ask');
+          if (w) {
+            w.innerHTML = `<b style="color:#${A.accent.toString(16).padStart(6, '0')}">${A.name}:</b>` +
+              ` "LT — ready for war?"&nbsp;&nbsp;<i>[Y] SUIT UP</i><i>[N] HOLD</i>`;
+            w.classList.remove('hidden');
+          }
+          try { Audio2.say('Lieutenant. Ready for war?'); } catch (e) {}
+        }
+        if (this.warAskT <= 0) this._warHide();                      // wandered off / timed out
+      }
       this.squadUpdate(dt, t, false);
       return;
     }

@@ -85,6 +85,11 @@ const UI = {
     $id('ammo').classList.toggle('low', med ? Player.energy <= 25 : Player.mag <= 8);
     const rh = $id('reload-hint');
     if (rh) rh.textContent = med && Player.energy <= 0 ? 'NO ENERGY — GRAB A CUBE' : '';
+    const mn = $id('min-num');
+    if (mn) mn.textContent = Player.minerals;
+    const uh = $id('up-hint');
+    if (uh) uh.textContent = Player.gunLvl >= 5 ? 'MK5 MAX'
+      : (Player.minerals >= 40 ? '[B] TUNE READY ⬡40' : '[B] TUNE ⬡40');
     $id('wave-num').textContent = 'WAVE ' + Math.max(1, Waves.wave);
     $id('score').textContent = 'KILLS ' + Enemies.kills;
     $id('hive-num').textContent = 'HIVES ' + Waves.hivesLeft() + '/4';
@@ -180,6 +185,7 @@ function pollPad(dt) {
 
   if (once(2)) startReload();                        // X
   if (once(3)) stimPack();                           // Y
+  if (once(12)) upgradeGun();                        // D-pad up — armory
   if (once(0)) tryJump();                            // A
   if (once(9)) {                                     // Start
     if (Player.dead || Game.won) restart();
@@ -257,6 +263,7 @@ function startGame(online) {
   Game.won = false; Game.leader = false;
   Game.time = 0;
   Player.kills = 0;
+  Player.minerals = 0; Player.gunLvl = 1;              // fresh contract, empty pouch
   Intro.menu = false;                         // leave the barracks backdrop
   resetBaseLift();                            // your ride dusts off a few sec in
   setUnit(Game.unit);                     // marine or marauder loadout
@@ -362,6 +369,7 @@ function restart() {
   Waves.wave = 0; Waves.t = 0; Waves.spawnT = 1.2;
   Game.won = false; Game.time = 0; Game.leader = false;
   Player.kills = 0;
+  Player.minerals = 0; Player.gunLvl = 1;              // fresh contract, empty pouch
   $id('gameover').classList.add('hidden');
   $id('victory').classList.add('hidden');
   $id('hud').classList.remove('hidden');
