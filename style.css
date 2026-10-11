@@ -307,6 +307,23 @@ button.ghost:hover { color:#cfe4ff; border-color:#5a8aba; }
   border-radius:3px; padding:10px 16px 9px; text-shadow:0 1px 3px #000;
   animation:chatin .18s ease-out; }
 #armory-panel b { color:#4ad0ff; letter-spacing:2px; margin-right:12px; }
+/* mission desk — west wall, amber */
+#mission-panel { position:fixed; left:50%; bottom:26vh; transform:translateX(-50%);
+  z-index:24; min-width:340px; font-size:12px; letter-spacing:1px; color:#cfe4ff;
+  pointer-events:none; background:rgba(8,18,32,.88); border:1px solid #2a558a;
+  border-left:3px solid #ffb04a; border-radius:3px; padding:10px 16px 9px;
+  text-shadow:0 1px 3px #000; animation:chatin .18s ease-out; }
+#mission-panel > b { color:#ffb04a; letter-spacing:2px; display:block; margin-bottom:7px; }
+#mission-panel .mi { display:flex; align-items:center; gap:10px;
+  padding:6px 8px; margin:4px 0; border:1px solid #223a55; border-radius:3px;
+  background:rgba(12,24,40,.6); }
+#mission-panel .mi i { font-style:normal; color:#7fa8d0; border:1px solid #2a558a;
+  border-radius:2px; padding:0 6px; }
+#mission-panel .mi b { letter-spacing:1.5px; color:#cfe4ff; }
+#mission-panel .mi span { color:#7fa8d0; font-size:10px; display:block; }
+#mission-panel .mi.sel { border-color:#ffb04a; background:rgba(40,28,10,.55); }
+#mission-panel .mi.sel b { color:#ffd98a; }
+#mission-panel .mi.sel i { color:#ffb04a; border-color:#ffb04a; }
 #armory-panel em { font-style:normal; color:#ffd24a; }
 #armory-panel u { display:block; text-decoration:none; margin-top:5px; }
 #armory-panel i { font-style:normal; color:#ffd24a; margin-left:12px;

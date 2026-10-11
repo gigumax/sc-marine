@@ -23,6 +23,7 @@ const Intro = {
   _vMove: null, _vClick: null, _vRay: null, _vNdc: null,
   _suitHot: false, onSuitTap: null,
   armory: null, armScreen: null, armNear: false, _greetHide: 0,
+  deskScreen: null, deskNear: false,
   // opening story — flies the REAL map while eggs hatch and the pack runs
   story: false, storyT: 0, storyCam: null, storyMarines: [], storyFx: [], fxT: 0,
   storyFire: null, smokeT: 0, _boomed: false, storyCity: [], storyCivs: [], killT: 0,
@@ -242,6 +243,25 @@ const Intro = {
     arm.position.set(9.4, 0, 7.6);
     s.add(arm);
 
+    /* --- mission desk — west wall, across from the armory --- */
+    const amber = new THREE.MeshStandardMaterial({
+      color: 0x2c1a06, emissive: 0xffb04a, emissiveIntensity: 1.2, roughness: .5 });
+    const desk = this.desk = new THREE.Group();
+    B(1.8, .9, .7, joint, 0, .45, 0, desk);                   // briefing table
+    B(1.8, .07, .75, armor, 0, .93, 0, desk);
+    B(.16, .55, .16, dark, -.6, 1.25, -.1, desk);             // screen posts
+    B(.16, .55, .16, dark, .6, 1.25, -.1, desk);
+    const dscr = B(1.5, .85, .05, amber, 0, 1.62, -.05, desk); // holo mission board
+    dscr.material = dscr.material.clone();
+    dscr.material.transparent = true; dscr.material.opacity = .55;
+    this.deskScreen = dscr;
+    B(.5, .22, .34, dark, .42, 1.06, .14, desk);              // field terminal
+    B(.24, .1, .2, amber, -.4, 1.02, .16, desk);              // lit keys
+    const dl = new THREE.PointLight(0xffb04a, .55, 7); dl.position.set(0, 1.9, .8); desk.add(dl);
+    desk.rotation.y = Math.PI / 2;                             // face the aisle
+    desk.position.set(-9.4, 0, 7.6);
+    s.add(desk);
+
     /* --- the CMC suit on its rack — the real battle mesh, front out --- */
     /* racked at the head of the right file with everyone else's — faces the aisle */
     const suit = this.suit = new THREE.Group(); s.add(suit);
@@ -421,6 +441,19 @@ const Intro = {
       : `GUN MK${Player.gunLvl} → ${Player.gunLvl + 1} · ⬡40  <i>[2]</i>`;
     ap.innerHTML = `<b>ARMORY</b><em>⬡ ${Player.minerals}</em><u>${a}</u><u>${g}</u>`;
     ap.classList.remove('hidden');
+  },
+
+  /* mission desk — pick where the drop goes */
+  _misRefresh() {
+    const mp = document.getElementById('mission-panel');
+    if (!mp) return;
+    const m = Game.mission;
+    mp.innerHTML = `<b>MISSION DESK</b>` +
+      `<div class="mi${m === 'hives' ? ' sel' : ''}"><i>1</i><b>DESTROY THE HIVES</b>` +
+        `<span>Drop in, burn the 4 spawn-hives, clear the field.</span></div>` +
+      `<div class="mi${m === 'defend' ? ' sel' : ''}"><i>2</i><b>DEFEND THE CITY</b>` +
+        `<span>12 towers, civilians on the streets — 10 waves of 100. Lose a tower, lose it all.</span></div>`;
+    mp.classList.remove('hidden');
   },
 
   /* G — hail the deck; nearest marine knocks off and hails back */
@@ -1184,6 +1217,14 @@ const Intro = {
         return;
       }
       if (k === 'g') { this._greet(); return; }               // hail the deck crew
+      if (this.deskNear) {                                  // mission board
+        if (k === '1' || k === '2') {
+          Game.mission = k === '1' ? 'hives' : 'defend';
+          try { Audio2.radio(); } catch (e) {}
+          this._misRefresh();
+        }
+        return;
+      }
       if (this.armNear) {                                   // armory order board
         if (k === '1' && buyArmor()) this._armRefresh();
         else if (k === '2' && buyGun()) this._armRefresh();
@@ -1222,6 +1263,9 @@ const Intro = {
     this.armNear = false;
     const ap = document.getElementById('armory-panel');
     if (ap) ap.classList.add('hidden');
+    this.deskNear = false;
+    const mpx = document.getElementById('mission-panel');
+    if (mpx) mpx.classList.add('hidden');
     const bmx = document.getElementById('bar-min');
     if (bmx) bmx.classList.add('hidden');
     const wcx = document.getElementById('war-clock');
@@ -1378,6 +1422,11 @@ const Intro = {
         const ad = Math.sqrt(ad2) || .01, ak = 0.97 / ad;
         p.x = 9.4 + adx * ak; p.z = 7.6 + adz * ak;
       }
+      const ddx = p.x + 9.4, ddz = p.z - 7.6, dd2 = ddx * ddx + ddz * ddz; // desk keep-out
+      if (dd2 < 0.95 && p.z >= -11.2 && p.z <= 11.2) {
+        const dd = Math.sqrt(dd2) || .01, dk = 0.97 / dd;
+        p.x = -9.4 + ddx * dk; p.z = 7.6 + ddz * dk;
+      }
       const bob = (mv || st) ? Math.sin(this.bobT * 2) * .03 : Math.sin(t * .9) * .02;
       this.cam.position.set(p.x, 1.62 + p.y + bob, p.z);
       const cy = Math.cos(this.vPitch);
@@ -1402,6 +1451,14 @@ const Intro = {
         const ap = document.getElementById('armory-panel');
         if (ap) { if (near) this._armRefresh(); else ap.classList.add('hidden'); }
         if (this.armScreen) this.armScreen.material.opacity = near ? .95 : .55;
+      }
+      // mission desk — the board lights when you step to the west wall
+      const dnear = Math.hypot(p.x + 9.4, p.z - 7.6) < 2.6;
+      if (dnear !== this.deskNear) {
+        this.deskNear = dnear;
+        const mp = document.getElementById('mission-panel');
+        if (mp) { if (dnear) this._misRefresh(); else mp.classList.add('hidden'); }
+        if (this.deskScreen) this.deskScreen.material.opacity = dnear ? .95 : .55;
       }
       const bn = document.getElementById('bar-min-num');    // wallet ticks as you buy
       if (bn && bn.textContent != Player.minerals) bn.textContent = Player.minerals;

@@ -14,6 +14,7 @@ const Game = {
   time: 0,
   respawnT: 0,                          // online: auto-redeploy countdown
   unit: 'marine',                       // class pick on the start screen
+  mission: 'hives',                     // mission desk pick — 'hives' | 'defend'
 };
 
 /* ==================== UI helpers ==================== */
@@ -90,17 +91,24 @@ const UI = {
     const uh = $id('up-hint');
     if (uh) uh.textContent = Player.gunLvl >= 5 ? 'MK5 MAX'
       : (Player.minerals >= 40 ? '[B] TUNE READY ⬡40' : '[B] TUNE ⬡40');
-    $id('wave-num').textContent = 'WAVE ' + Math.max(1, Waves.wave);
+    const def = Defend.active;
+    $id('wave-num').textContent = def
+      ? 'WAVE ' + Math.max(1, Defend.wave) + '/' + Defend.waveMax
+      : 'WAVE ' + Math.max(1, Waves.wave);
     $id('score').textContent = 'KILLS ' + Enemies.kills;
-    $id('hive-num').textContent = 'HIVES ' + Waves.hivesLeft() + '/4';
+    $id('hive-num').textContent = def
+      ? 'CITY ' + Defend.standing() + '/' + Defend.city.length
+      : 'HIVES ' + Waves.hivesLeft() + '/4';
     $id('rank').textContent = Game.leader
       ? '★ SQUAD LEADER'
       : 'PVT · ' + Math.min(PROMOTE_KILLS, Player.kills) + '/' + PROMOTE_KILLS;
-    $id('objective').textContent = Game.leader
-      ? '★ LEAD THE SQUAD — DESTROY THE HIVES'
-      : Net.on
-        ? 'LINKED — DESTROY THE HIVES'
-        : 'FOLLOW ★ — DESTROY THE HIVES';
+    $id('objective').textContent = def
+      ? 'DEFEND THE CITY — LOSE A TOWER, LOSE IT ALL'
+      : Game.leader
+        ? '★ LEAD THE SQUAD — DESTROY THE HIVES'
+        : Net.on
+          ? 'LINKED — DESTROY THE HIVES'
+          : 'FOLLOW ★ — DESTROY THE HIVES';
     updateSquadHud();
     // matchmaking line — searching until peers link; nobody home → solo deployment
     if (Game.online) {
@@ -152,6 +160,11 @@ function drawRadar() {
          e.hunter ? 5 : 3.5);
   for (const p of Enemies.pickups) plot(p.m.position.x, p.m.position.z, p.type === 'ammo' ? '#5ab4ff' : '#5aff8a', 3.5);
   for (const a of Allies.list) if (!a.dead) plot(a.pos.x, a.pos.z, a.accent, 4);
+  if (Defend.active) {
+    for (const b of Defend.city) if (!b.dead) plot(b.pos.x, b.pos.z, '#ffd24a', 5);
+    for (const c of Defend.civs) if (!c.dead)
+      plot(c.m.position.x, c.m.position.z, '#8affc0', 2.5);
+  }
   if (Net.on) for (const id in Net.peers) {
     const q = Net.peers[id];
     if (!q.dead) plot(q.mesh.position.x, q.mesh.position.z, q.accent || '#5ab4ff', 4);
@@ -277,6 +290,7 @@ function startGame(online) {
   if (Net.on) Net.resetMatch();                                      // wave timers + objective banner
   if (Game.online) { clearAllies(); buildSquadHud(); }
   else spawnAllies();                                 // solo ops gets AI marines
+  if (!Game.online && Game.mission === 'defend') Defend.start();   // desk orders
   canvasClick();
 }
 
@@ -342,6 +356,7 @@ function respawn() {
 
 /* scrub the field — entities, gibs, pickups, tracers; hives go back to eggs */
 function resetField() {
+  Defend.clear();                                     // drop the city, rubble and all
   for (const e of Enemies.list) Enemies.scene.remove(e.mesh);
   for (const g of Enemies.gibs) Enemies.scene.remove(g.m);
   for (const p of Enemies.pickups) Enemies.scene.remove(p.m);
@@ -430,6 +445,7 @@ function restart() {
   resetBaseLift();                            // base waits on the pad again
   if (Game.online) { clearAllies(); buildSquadHud(); }
   else spawnAllies();                                 // solo ops gets AI marines
+  if (!Game.online && Game.mission === 'defend') Defend.start();   // same orders, rematch
   canvasClick();
 }
 
@@ -444,9 +460,16 @@ Game.gameOver = function () {
   }
   Game.running = false;
   document.exitPointerLock && document.exitPointerLock();
-  $id('death-stats').innerHTML =
-    `Hives destroyed: <b>${4 - Waves.hivesLeft()}/4</b><br>` +
-    `Waves survived: <b>${Waves.wave}</b><br>Zerg killed: <b>${Enemies.kills}</b>`;
+  document.querySelector('#gameover h1').textContent = Defend.lost ? 'CITY LOST' : 'K.I.A.';
+  $id('death-stats').innerHTML = Defend.active
+    ? (Defend.lost
+        ? `A tower fell — <b>the city is gone</b>.<br>` +
+          `Waves held: <b>${Math.max(0, Defend.wave - 1)}/${Defend.waveMax}</b><br>` +
+          `Zerg killed: <b>${Enemies.kills}</b>`
+        : `Waves survived: <b>${Defend.wave}/${Defend.waveMax}</b><br>` +
+          `Zerg killed: <b>${Enemies.kills}</b><br>The city mourns its LT.`)
+    : `Hives destroyed: <b>${4 - Waves.hivesLeft()}/4</b><br>` +
+      `Waves survived: <b>${Waves.wave}</b><br>Zerg killed: <b>${Enemies.kills}</b>`;
   $id('gameover').classList.remove('hidden');
 };
 
@@ -456,9 +479,12 @@ Game.victory = function () {
   Audio2.pickup(); setTimeout(() => Audio2.wave(), 300);
   document.exitPointerLock && document.exitPointerLock();
   const mins = Math.floor(Game.time / 60), secs = Math.floor(Game.time % 60);
-  $id('win-stats').innerHTML =
-    `All spawn-hives destroyed.<br>` +
-    `Time: <b>${mins}:${String(secs).padStart(2, '0')}</b><br>Zerg killed: <b>${Enemies.kills}</b>`;
+  document.querySelector('#victory h1').textContent = Defend.active ? 'CITY HELD' : 'ZONE SECURE';
+  $id('win-stats').innerHTML = Defend.active
+    ? `Every tower still standing — <b>${Defend.waveMax} waves of ${Defend.perWave}</b> held.<br>` +
+      `Time: <b>${mins}:${String(secs).padStart(2, '0')}</b><br>Zerg killed: <b>${Enemies.kills}</b>`
+    : `All spawn-hives destroyed.<br>` +
+      `Time: <b>${mins}:${String(secs).padStart(2, '0')}</b><br>Zerg killed: <b>${Enemies.kills}</b>`;
   $id('victory').classList.remove('hidden');
 };
 
@@ -610,7 +636,8 @@ window.addEventListener('load', () => {
       // host simulates the swarm; clients render net replicas
       if (!Net.on || Net.isHost) {
         updateEnemies(dt, damagePlayer);
-        Waves.update(dt);
+        if (Defend.active) Defend.update(dt);            // city siege, not hive hunt
+        else Waves.update(dt);
       }
       updateAllies(dt);
       updateSpawners(dt);

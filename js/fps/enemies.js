@@ -392,6 +392,8 @@ function spawnEnemy(type, pos) {
     home: pos.clone(),             // where the hive dumped it — drift back here
     // fresh hatch knows where the drop was — it hunts the marines, not the nest
     alertPos: Player.pos.clone(), alertT: 600,
+    // DEFEND THE CITY — some of the wave is out to burn towers, not hunt marines
+    raid: Defend.active && !ultra && Math.random() < .45, raidTgt: null,
     wanderT: Math.random() * 2, wanderPos: null,
   };
   mesh.userData.enemy = e;
@@ -866,6 +868,20 @@ function updateEnemies(dt, onPlayerHit) {
     // nothing in sight — stalk the last gunshot, else drift around the hive
     const engaged = !!tp;
     if (!engaged) {
+      if (e.raid && Defend.active) {                    // raider — burn the city
+        if (!e.raidTgt || e.raidTgt.dead) e.raidTgt = Defend.pickTower();
+        const b = e.raidTgt;
+        if (b) {
+          const bd = Math.hypot(b.pos.x - m.position.x, b.pos.z - m.position.z);
+          if (bd < b.r + 1.9) {                         // claws on the wall — chew
+            m.rotation.y = Math.atan2(b.pos.x - m.position.x, b.pos.z - m.position.z);
+            Defend.chew(b, e, dt);
+            continue;
+          }
+          (e.alertPos = e.alertPos || new THREE.Vector3()).copy(b.pos);
+          e.alertT = 3;
+        }
+      }
       if (e.alertPos) {
         e.alertT -= dt;
         if (e.alertT <= 0 ||
