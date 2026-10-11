@@ -646,9 +646,9 @@ const Intro = {
       const front = Math.random() < .45;                        // caught on the wrong side of the line
       let cx = 0, cz = 0;
       for (let tr = 0; tr < 4; tr++) {                          // don't pop inside a tower
-        cx = (Math.random() - .5) * 120;
+        cx = (Math.random() - .5) * 140;
         cz = front ? -14 + Math.random() * 22                   // no-man's-land, out among the lings
-                   : 4 + Math.random() * 100;                   // streets behind the wall
+                   : 4 + Math.random() * 200;                   // the sprawl runs deep — so do they
         if (!this.storyCity.some(B => !B.far &&
             Math.abs(B.bx - cx) < B.h * .12 + 8 && Math.abs(B.bz - cz) < B.h * .12 + 8)) break;
       }
@@ -742,9 +742,9 @@ const Intro = {
       [12.2,   5, 1.5, 15.5, -3, 1.1, 9.8],  // GROUND LEVEL — the swarm hits the line
       [14.2,  -4, 1.6, 14.5,  6, 1.0, 9.6],  // slide along as the wall buckles
       [16.2,  13, 4.5,   9,   0, 2.5, 22],   // pull up as the ultras stride in
-      [18.4, -18,  6,  2,      0, 3, 30],    // ultralisks hit the blocks
-      [21.0,  10, 16, 58,      0, 3, 24],    // pull back over the burning city
-      [23.8,  18, 20, 66,      0, 3, 24],
+      [18.4, -18,  7,  2,      0, 10, 120],  // ultralisks hit the blocks — gaze down the boulevard
+      [21.0,  12, 38, 85,      0, 14, 220],  // rising crane — the sprawl keeps going
+      [23.8,  -8, 62, 110,     0, 12, 290],  // high over the burning city
     ];
     let i = 0;
     while (i < KS.length - 2 && t >= KS[i + 1][0]) i++;
@@ -869,11 +869,11 @@ const Intro = {
       const cp = c.m.position;
       const dd = Math.hypot(c.tx - cp.x, c.tz - cp.z);
       if (dd < .6 || !c.tx) {
-        c.tx = (Math.random() - .5) * 88;
+        c.tx = (Math.random() - .5) * 140;
         c.tz = c.front
-          ? (Math.random() < .6 ? 16 + Math.random() * 60       // break for the city — through the guns
+          ? (Math.random() < .6 ? 16 + Math.random() * 120      // break for the city — through the guns
                                 : -12 + Math.random() * 24)     // or double back in terror
-          : 14 + Math.random() * 60;
+          : 14 + Math.random() * 190;                           // fleeing deep into the blocks
       }
       cp.x += (c.tx - cp.x) / dd * c.spd * dt;
       cp.z += (c.tz - cp.z) / dd * c.spd * dt;
