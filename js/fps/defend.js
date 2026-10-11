@@ -108,10 +108,14 @@ const Defend = {
     this.wave = 0; this.waveLeft = 0;
   },
 
-  /* wave spawn point — rolls out of the north, arcs widen late */
+  /* wave spawn point — comes out of the wilds on the side you're holding,
+     a few pincers slip in from anywhere so flanks stay honest */
   ringPos() {
-    const a = Math.PI + (Math.random() - .5) * (this.wave > 4 ? 4.6 : 2.6);
-    const r = 150 + Math.random() * 70;
+    const side = Math.atan2(Player.pos.x - this.C.x, Player.pos.z - this.C.z);
+    const a = Math.random() < .2
+      ? Math.random() * Math.PI * 2                                    // pincer
+      : side + (Math.random() - .5) * (this.wave > 4 ? 3.4 : 2.2);     // your side
+    const r = 140 + Math.random() * 70;
     return { x: this.C.x + Math.sin(a) * r, z: this.C.z + Math.cos(a) * r };
   },
 
