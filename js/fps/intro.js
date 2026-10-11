@@ -520,6 +520,10 @@ const Intro = {
       this.storyCam = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .1, 2000);
     else this.storyCam.aspect = innerWidth / innerHeight, this.storyCam.updateProjectionMatrix();
     this.story = true; this.storyT = 0; this.fxT = 0; this.cb = cb; this.armed = false;
+    if (Enemies.scene.fog) {                            // the sprawl runs ~400u out — thin the haze
+      this._fogDen = Enemies.scene.fog.density;
+      Enemies.scene.fog.density = .0035;
+    }
     document.getElementById('startscreen').classList.add('hidden');
     document.getElementById('storyscreen').classList.remove('hidden');
     document.getElementById('story-text').style.display = 'none';   // no words
@@ -567,37 +571,37 @@ const Intro = {
     hordeBody.instanceColor.needsUpdate = true;
     Enemies.scene.add(hordeBody, hordeHorn);
     this.hordeIm = [hordeBody, hordeHorn];
-    // the city — three times the sprawl: dense tower grid + distant silhouette ring
+    // the city — five times the sprawl: dense tower grid + distant silhouette ring
     this.storyCity = [];
     const towerAt = (bx, bz, far) => {
-      const h = far ? 6 + Math.random() * 12 : 3 + Math.random() * 8,
-        w = far ? 3 + Math.random() * 2.4 : 1.9 + Math.random() * 1.8;
+      const h = far ? 30 + Math.random() * 60 : 15 + Math.random() * 40,
+        w = far ? 15 + Math.random() * 12 : 9.5 + Math.random() * 9;
       const g = new THREE.Group();
       const tower = new THREE.Mesh(new THREE.BoxGeometry(w, h, w),
         new THREE.MeshStandardMaterial({ color: far ? 0x141c26 : 0x232e3a, roughness: .8, metalness: .3 }));
       tower.position.y = h / 2; g.add(tower);
       const winMat = new THREE.MeshBasicMaterial({ color: 0x64d8ff });   // lit windows
-      if (!far) for (let wy = .7; wy < h - .3; wy += 1.15) {
-        const s = new THREE.Mesh(new THREE.BoxGeometry(w * .78, .1, .02), winMat);
-        s.position.set(0, wy, w / 2 + .015); g.add(s);
+      if (!far) for (let wy = 3.5; wy < h - 1.5; wy += 5.75) {
+        const s = new THREE.Mesh(new THREE.BoxGeometry(w * .78, .5, .1), winMat);
+        s.position.set(0, wy, w / 2 + .08); g.add(s);
       }
       g.position.set(bx, 0, bz);
       Enemies.scene.add(g);
       // ruin rolls north→south; the ultras also just flatten what they touch
       this.storyCity.push({ g, winMat, h, bx, bz, far,
-        fallT: 16.5 + (bz + 8) / 64 * 3.5 + Math.random() * .7,
+        fallT: 16.5 + (bz / 5 + 8) / 64 * 3.5 + Math.random() * .7,
         dir: Math.random() < .5 ? -1 : 1, fell: false });
     };
-    for (let gx = -58; gx <= 58; gx += 6.5)
-      for (let gz = 14; gz <= 58; gz += 6.5) {
-        const bx = gx + (Math.random() - .5) * 3, bz = gz + (Math.random() - .5) * 3;
-        if (Math.abs(bx) < 5 && bz < 24) continue;          // keep the pad + hull clear
+    for (let gx = -290; gx <= 290; gx += 32.5)
+      for (let gz = 70; gz <= 290; gz += 32.5) {
+        const bx = gx + (Math.random() - .5) * 15, bz = gz + (Math.random() - .5) * 15;
+        if (Math.abs(bx) < 25 && bz < 120) continue;        // the boulevard back to the pad
         if (Math.random() < .16) continue;                  // gaps = streets
         towerAt(bx, bz, false);
       }
     for (let i = 0; i < 40; i++) {                          // skyline silhouettes
-      const a = Math.random() * Math.PI * 2, r = 62 + Math.random() * 26;
-      towerAt(Math.cos(a) * r, 30 + Math.sin(a) * r * .7, true);
+      const a = Math.random() * Math.PI * 2, r = 310 + Math.random() * 130;
+      towerAt(Math.cos(a) * r, 150 + Math.sin(a) * r * .7, true);
     }
 
     // THE WALL — two deep ranks across the whole approach, marauders interleaved
@@ -611,6 +615,7 @@ const Intro = {
         const m = (kind === 'rau' ? buildMarauderMesh : buildMarineMesh)(0x4ad0ff);
         m.position.set(wx + (Math.random() - .5) * .5, 0, rz + (Math.random() - .5) * .4);
         m.rotation.y = Math.PI + (Math.random() - .5) * .16;   // face the swarm
+        m.scale.setScalar(1.35);                                // bigger troopers
         m.add(this._chestRig(kind === 'rau'));                  // same hatch on the wall
         for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
         m.userData.strafe = Math.random() < .5 ? -1 : 1;
@@ -623,6 +628,7 @@ const Intro = {
       const m = buildMarauderMesh(0x4ad0ff);
       m.position.set(fx, 0, 10.6);
       m.rotation.y = Math.PI;
+      m.scale.setScalar(1.35);                                  // bigger troopers
       m.add(this._chestRig(true));                              // same hatch on the wall
       for (const k of ['barBg', 'barFg', 'star']) if (m.userData[k]) m.userData[k].visible = false;
       m.userData.strafe = fx < 0 ? 1 : -1;
@@ -631,14 +637,22 @@ const Intro = {
       this.storyMarines.push(m);
     }
 
-    // civilians loose in the streets — a hundred screaming dots, some don't make it
+    // civilians loose in the streets — bigger now, and the streets run deep
     this.storyCivs = [];
     this.storyGibs = [];
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 130; i++) {
       const m = this.civMesh();
-      m.position.set((Math.random() - .5) * 52, 0, 2 + Math.random() * 32);
+      m.scale.setScalar(2.3);                                   // person-sized, not a dot
+      let cx = 0, cz = 0;
+      for (let tr = 0; tr < 4; tr++) {                          // don't pop inside a tower
+        cx = (Math.random() - .5) * 120;
+        cz = 4 + Math.random() * 100;
+        if (!this.storyCity.some(B => !B.far &&
+            Math.abs(B.bx - cx) < B.h * .12 + 8 && Math.abs(B.bz - cz) < B.h * .12 + 8)) break;
+      }
+      m.position.set(cx, 0, cz);
       Enemies.scene.add(m);
-      this.storyCivs.push({ m, tx: 0, tz: 0, spd: 4 + Math.random() * 2.4, fell: false, ph: Math.random() * 7 });
+      this.storyCivs.push({ m, tx: 0, tz: 0, spd: 6 + Math.random() * 3.4, fell: false, ph: Math.random() * 7 });
     }
 
     // the two ultralisks — parked past the wall's flank; they charge in late
@@ -1269,6 +1283,9 @@ const Intro = {
     for (const B of this.storyCity) Enemies.scene.remove(B.g);
     for (const c of this.storyCivs) Enemies.scene.remove(c.m);
     this.storyCity = []; this.storyCivs = [];
+    if (this._fogDen && Enemies.scene.fog) {                    // game haze back on
+      Enemies.scene.fog.density = this._fogDen; this._fogDen = 0;
+    }
     if (World.base) resetBaseLift();                   // un-scorch the ride home
     const tt = document.getElementById('story-title'); if (tt) tt.style.opacity = 0;
     if (Enemies.list.length) {                                   // story extras — fresh field for the game
