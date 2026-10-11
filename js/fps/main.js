@@ -288,9 +288,9 @@ function startGame(online) {
   resetBaseLift();                            // your ride dusts off a few sec in
   setUnit(Game.unit);                     // marine or marauder loadout
   if (Net.on) Net.resetMatch();                                      // wave timers + objective banner
-  if (Game.online) { clearAllies(); buildSquadHud(); }
+  if (!Game.online && Game.mission === 'defend') Defend.start();   // desk orders — city + the line
+  else if (Game.online) { clearAllies(); buildSquadHud(); }
   else spawnAllies();                                 // solo ops gets AI marines
-  if (!Game.online && Game.mission === 'defend') Defend.start();   // desk orders
   canvasClick();
 }
 
@@ -443,9 +443,9 @@ function restart() {
   Game.running = true;
   Waves.reset();
   resetBaseLift();                            // base waits on the pad again
-  if (Game.online) { clearAllies(); buildSquadHud(); }
-  else spawnAllies();                                 // solo ops gets AI marines
   if (!Game.online && Game.mission === 'defend') Defend.start();   // same orders, rematch
+  else if (Game.online) { clearAllies(); buildSquadHud(); }
+  else spawnAllies();                                 // solo ops gets AI marines
   canvasClick();
 }
 

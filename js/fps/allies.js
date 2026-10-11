@@ -514,6 +514,7 @@ function mkAlly(idx, name, accent, leader, mesh, slot, at) {
     fireT: 0.4 + idx * 0.15, retargetT: idx * 0.12,
     tgt: null, tgtHive: null,
     slot,
+    hold: null,                            // {x,z} — posted on the line (defend mode)
     walkT: Math.random() * 7,
     regenT: 0, hurtT: 0, healT: 0,
     minerals: 0, gunLvl: 1, dmgMul: 1,       // every marine banks his own armory fund
@@ -844,6 +845,26 @@ function updateAllies(dt) {
       const gd = Math.hypot(sdx, sdz);
       if (gd > 0.7) {
         const sp = gd > 8 ? 9.5 : 6.5;
+        const res = worldCollide(a.pos.x + sdx / gd * sp * dt,
+                                 a.pos.z + sdz / gd * sp * dt, a.radius);
+        a.pos.x = res.x; a.pos.z = res.z;
+        a.moving = true;
+        a.walkT += dt * sp * 1.5;
+      }
+    } else if (a.hold) {
+      // HOLD THE LINE — the sign said stay put; break only to kill
+      // whatever comes within range of the post, then step back on it
+      let gx = a.hold.x, gz = a.hold.z, holdR = 0.9;
+      if (a.tgt && !a.tgt.dead) {
+        const ep = a.tgt.mesh.position;
+        if (Math.hypot(ep.x - a.hold.x, ep.z - a.hold.z) < 22) {
+          gx = ep.x; gz = ep.z; holdR = 8;          // press out — guns do the work
+        }
+      }
+      sdx = gx - a.pos.x; sdz = gz - a.pos.z;
+      const gd = Math.hypot(sdx, sdz);
+      if (gd > holdR) {
+        const sp = gd > 10 ? 9.0 : 6.0;
         const res = worldCollide(a.pos.x + sdx / gd * sp * dt,
                                  a.pos.z + sdz / gd * sp * dt, a.radius);
         a.pos.x = res.x; a.pos.z = res.z;

@@ -7,7 +7,7 @@ const Defend = {
   active: false, lost: false, won: false, failT: -1,
   wave: 0, waveMax: 10, perWave: 100,
   waveLeft: 0, feedT: 0, betweenT: 0, pause: false,
-  city: [], civs: [],
+  city: [], civs: [], sign: null,
   C: { x: 0, z: -64 },                          // district heart — south of the pad
 
   liveCount() {
@@ -92,6 +92,8 @@ const Defend = {
       Enemies.scene.add(m);
       this.civs.push({ m, tx: 0, tz: 0, spd: 5.5 + Math.random() * 3, dead: false, fellDone: false, ph: Math.random() * 7 });
     }
+    this.spawnLine();                                  // the company holds the line
+    this._sign(0, -11);                                // the posted order
     UI.waveBanner('DEFEND THE CITY — LOSE A TOWER, LOSE IT ALL');
     Audio2.say && Audio2.say('Civilians on the streets — hold every tower, marines.', { rate: .95 });
   },
@@ -103,9 +105,61 @@ const Defend = {
       const i2 = World.sight.indexOf(b.sgt);       if (i2 >= 0) World.sight.splice(i2, 1);
     }
     for (const c of this.civs) Enemies.scene.remove(c.m);
+    if (this.sign) { Enemies.scene.remove(this.sign); this.sign = null; }
     this.city = []; this.civs = [];
     this.active = this.lost = this.won = false; this.failT = -1;
     this.wave = 0; this.waveLeft = 0;
+  },
+
+  /* the company — 29 marines shoulder to shoulder across the approach,
+     three marauder chassis spaced through the rank */
+  spawnLine() {
+    clearAllies();
+    const N = 29, GAP = 3.4, LZ = -16, X0 = -(N - 1) / 2 * GAP;
+    const pool = Allies.names.concat(REINF_NAMES);
+    const leads = [4, 14, 24];
+    for (let i = 0; i < N; i++) {
+      const isLead = leads.includes(i);
+      const mesh = (isLead ? buildMarauderMesh : buildMarineMesh)(playerAccent());
+      mesh.add(Intro._chestRig(isLead));               // same four-corner hatch as your rig
+      const px = X0 + i * GAP;
+      const a = mkAlly(i,
+        i < pool.length ? pool[i]
+          : pool[i % pool.length] + '-' + (1 + Math.floor(i / pool.length)),
+        '#' + Allies.accents[i % Allies.accents.length].toString(16).padStart(6, '0'),
+        isLead, mesh, { x: 0, z: 0 },
+        new THREE.Vector3(px, 0, LZ));
+      a.hold = { x: px, z: LZ };                       // posted — the sign is the order
+    }
+    buildSquadHud();
+  },
+
+  /* a painted order on a post — reads as you walk out of the drop */
+  _sign(x, z) {
+    const g = new THREE.Group();
+    const post = new THREE.Mesh(new THREE.BoxGeometry(.18, 2.7, .18),
+      new THREE.MeshStandardMaterial({ color: 0x3a4450, roughness: .8 }));
+    post.position.y = 1.35; g.add(post);
+    const cv = document.createElement('canvas');
+    cv.width = 512; cv.height = 256;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#0d141d'; c.fillRect(0, 0, 512, 256);
+    c.strokeStyle = '#ffb04a'; c.lineWidth = 10; c.strokeRect(8, 8, 496, 240);
+    c.fillStyle = '#ffb04a'; c.font = 'bold 30px monospace'; c.textAlign = 'center';
+    c.fillText('RECOMMENDED:', 256, 58);
+    c.fillStyle = '#cfe4ff'; c.font = '23px monospace';
+    c.fillText('STAY WHERE YOU ARE', 256, 112);
+    c.fillText('UNLESS THEY TRY', 256, 150);
+    c.fillText('TO ATTACK YOU', 256, 188);
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 1.9),
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv) }));
+    board.position.y = 2.5; g.add(board);              // plane faces +z — toward the drop
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(4.1, .12, .12),
+      new THREE.MeshStandardMaterial({ color: 0x3a4450, roughness: .8 }));
+    cap.position.y = 3.5; g.add(cap);
+    g.position.set(x, 0, z);
+    Enemies.scene.add(g);
+    this.sign = g;
   },
 
   /* wave spawn point — comes out of the wilds on the side you're holding,
