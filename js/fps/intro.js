@@ -637,22 +637,24 @@ const Intro = {
       this.storyMarines.push(m);
     }
 
-    // civilians loose in the streets — bigger now, and the streets run deep
+    // civilians loose in the streets — some never made it behind the guns
     this.storyCivs = [];
     this.storyGibs = [];
     for (let i = 0; i < 130; i++) {
       const m = this.civMesh();
       m.scale.setScalar(2.3);                                   // person-sized, not a dot
+      const front = Math.random() < .45;                        // caught on the wrong side of the line
       let cx = 0, cz = 0;
       for (let tr = 0; tr < 4; tr++) {                          // don't pop inside a tower
         cx = (Math.random() - .5) * 120;
-        cz = 4 + Math.random() * 100;
+        cz = front ? -14 + Math.random() * 22                   // no-man's-land, out among the lings
+                   : 4 + Math.random() * 100;                   // streets behind the wall
         if (!this.storyCity.some(B => !B.far &&
             Math.abs(B.bx - cx) < B.h * .12 + 8 && Math.abs(B.bz - cz) < B.h * .12 + 8)) break;
       }
       m.position.set(cx, 0, cz);
       Enemies.scene.add(m);
-      this.storyCivs.push({ m, tx: 0, tz: 0, spd: 6 + Math.random() * 3.4, fell: false, ph: Math.random() * 7 });
+      this.storyCivs.push({ m, tx: 0, tz: 0, front, spd: 6 + Math.random() * 3.4, fell: false, ph: Math.random() * 7 });
     }
 
     // the two ultralisks — parked past the wall's flank; they charge in late
@@ -866,7 +868,13 @@ const Intro = {
       }
       const cp = c.m.position;
       const dd = Math.hypot(c.tx - cp.x, c.tz - cp.z);
-      if (dd < .6 || !c.tx) { c.tx = (Math.random() - .5) * 88; c.tz = 14 + Math.random() * 40; }
+      if (dd < .6 || !c.tx) {
+        c.tx = (Math.random() - .5) * 88;
+        c.tz = c.front
+          ? (Math.random() < .6 ? 16 + Math.random() * 60       // break for the city — through the guns
+                                : -12 + Math.random() * 24)     // or double back in terror
+          : 14 + Math.random() * 60;
+      }
       cp.x += (c.tx - cp.x) / dd * c.spd * dt;
       cp.z += (c.tz - cp.z) / dd * c.spd * dt;
       cp.y = Math.abs(Math.sin(t * 12 + c.ph)) * .07;          // panicked scamper
