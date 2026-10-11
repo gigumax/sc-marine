@@ -1210,6 +1210,9 @@ const Intro = {
     if (bh) bh.classList.add('hidden');
     const bm = document.getElementById('bar-min');      // shard wallet rides along
     if (bm) bm.classList.remove('hidden');
+    this.visitT = 180;                                   // three minutes, then the lift goes
+    const wc0 = document.getElementById('war-clock');
+    if (wc0) { wc0.classList.remove('hidden', 'hot'); wc0.innerHTML = 'DEPARTS <b>3:00</b>'; }
     Game.renderer.domElement.requestPointerLock();     // mouse locks in like the fight
   },
 
@@ -1221,6 +1224,8 @@ const Intro = {
     if (ap) ap.classList.add('hidden');
     const bmx = document.getElementById('bar-min');
     if (bmx) bmx.classList.add('hidden');
+    const wcx = document.getElementById('war-clock');
+    if (wcx) wcx.classList.add('hidden');
     clearTimeout(this._greetHide);
     if (this._vKey) { document.removeEventListener('keydown', this._vKey); this._vKey = null; }
     if (this._vMove) { document.removeEventListener('mousemove', this._vMove); this._vMove = null; }
@@ -1400,6 +1405,21 @@ const Intro = {
       }
       const bn = document.getElementById('bar-min-num');    // wallet ticks as you buy
       if (bn && bn.textContent != Player.minerals) bn.textContent = Player.minerals;
+      // the lift waits for no one — auto suit-up when the clock hits zero
+      this.visitT -= dt;
+      const wc = document.getElementById('war-clock');
+      if (wc) {
+        const tv = Math.max(0, this.visitT),
+          mm = Math.floor(tv / 60), ss = ('0' + Math.floor(tv % 60)).slice(-2);
+        wc.innerHTML = `DEPARTS <b>${mm}:${ss}</b>`;
+        wc.classList.toggle('hot', this.visitT < 30);
+      }
+      if (this.visitT <= 0) {                            // orders are orders — you ride
+        const w = document.getElementById('war-ask');
+        if (w) w.classList.add('hidden');
+        if (this.onSuitTap) this.onSuitTap();
+        return;
+      }
       // a file lead walks over and asks — "ready for war?"
       if (!this.warAsk) {
         this.warT -= dt;

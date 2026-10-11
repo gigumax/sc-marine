@@ -289,6 +289,14 @@ button.ghost:hover { color:#cfe4ff; border-color:#5a8aba; }
   border-radius:3px; padding:8px 14px; text-shadow:0 1px 3px #000; }
 #bar-min b { color:#dff0ff; font-variant-numeric:tabular-nums; margin-right:10px; }
 #bar-min span { color:#7fa8d0; font-size:10px; }
+#war-clock { position:fixed; right:18px; bottom:58px; z-index:24;
+  font-size:12px; letter-spacing:2px; color:#ffd24a; pointer-events:none;
+  background:rgba(8,18,32,.85); border:1px solid #2a558a; border-left:3px solid #ffd24a;
+  border-radius:3px; padding:8px 14px; text-shadow:0 1px 3px #000; }
+#war-clock b { font-variant-numeric:tabular-nums; color:#ffe9b0; margin-left:8px; }
+#war-clock.hot { border-color:#a03030; border-left-color:#ff5a3a; color:#ff7a5a;
+  animation:lobbyPulse 1s infinite; }
+#war-clock.hot b { color:#ffb09a; }
 #war-ask b { letter-spacing:2px; }
 #war-ask i { font-style:normal; color:#ffd24a; margin-left:12px;
   border:1px solid #5a4a1a; border-radius:2px; padding:1px 6px; background:rgba(30,24,8,.8); }
